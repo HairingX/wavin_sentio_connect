@@ -8,8 +8,8 @@ from modbus_event_connect import ( # type: ignore
         ModbusSetpointKey,
         VersionInfoKeys,
         Read,
-        ValueLimits,
-        ModbusValueTypes,
+        ValueLimit,
+        ModbusValueType,
         ) 
 
 class WavinSentioDatapointKey(ModbusDatapointKey):
@@ -659,41 +659,41 @@ class WavinSentio(ModbusDeviceBase):
         self._attr_version_keys = VersionInfoKeys(datapoint_major=WavinSentioDatapointKey.DATAPOINT_MAJOR, datapoint_minor=WavinSentioDatapointKey.DATAPOINT_MINOR)
         self._attr_default_extras = DEFAULT_EXTRAS
         self._attr_datapoints = [
-            ModbusDatapoint(key=WavinSentioDatapointKey.DATAPOINT_MAJOR, read_address=1, max=ValueLimits.UINT8_MAXERR),
-            ModbusDatapoint(key=WavinSentioDatapointKey.DATAPOINT_MINOR, read_address=2, max=ValueLimits.UINT8_MAXERR),
-            ModbusDatapoint(key=WavinSentioDatapointKey.DEVICE_TYPE,    read_address=10, max=ValueLimits.UINT8_MAXERR), #, extra={"read": Read.STARTUP_ALWAYS} when we want to support attached CALEFA
-            ModbusDatapoint(key=WavinSentioDatapointKey.HARDWARE_MAJOR, read_address=11, max=ValueLimits.UINT8_MAXERR),
-            ModbusDatapoint(key=WavinSentioDatapointKey.SOFTWARE_MAJOR, read_address=12, max=ValueLimits.UINT8_MAXERR),
-            ModbusDatapoint(key=WavinSentioDatapointKey.SOFTWARE_MINOR, read_address=13, max=ValueLimits.UINT8_MAXERR),
-            ModbusDatapoint(key=WavinSentioDatapointKey.HEATING_COOLING_MODE, read_address=20, max=ValueLimits.UINT8_MAXERR),
+            ModbusDatapoint(key=WavinSentioDatapointKey.DATAPOINT_MAJOR, read_address=1, max=ValueLimit.UINT8_MAXERR),
+            ModbusDatapoint(key=WavinSentioDatapointKey.DATAPOINT_MINOR, read_address=2, max=ValueLimit.UINT8_MAXERR),
+            ModbusDatapoint(key=WavinSentioDatapointKey.DEVICE_TYPE,    read_address=10, max=ValueLimit.UINT8_MAXERR), #, extra={"read": Read.STARTUP_ALWAYS} when we want to support attached CALEFA
+            ModbusDatapoint(key=WavinSentioDatapointKey.HARDWARE_MAJOR, read_address=11, max=ValueLimit.UINT8_MAXERR),
+            ModbusDatapoint(key=WavinSentioDatapointKey.SOFTWARE_MAJOR, read_address=12, max=ValueLimit.UINT8_MAXERR),
+            ModbusDatapoint(key=WavinSentioDatapointKey.SOFTWARE_MINOR, read_address=13, max=ValueLimit.UINT8_MAXERR),
+            ModbusDatapoint(key=WavinSentioDatapointKey.HEATING_COOLING_MODE, read_address=20, max=ValueLimit.UINT8_MAXERR),
         ]
         self._attr_setpoints = [
-            ModbusSetpoint(key=WavinSentioSetpointKey.SETPOINT_MAJOR, read_address=1, max=ValueLimits.UINT8_MAXERR),
-            ModbusSetpoint(key=WavinSentioSetpointKey.SETPOINT_MINOR, read_address=2, max=ValueLimits.UINT8_MAXERR),
-            ModbusSetpoint(key=WavinSentioSetpointKey.MODBUS_MODE,    read_address=5, max=ValueLimits.UINT8_MAXERR, extra={"read": Read.STARTUP_ALWAYS}), # important to know how to react to writes
+            ModbusSetpoint(key=WavinSentioSetpointKey.SETPOINT_MAJOR, read_address=1, max=ValueLimit.UINT8_MAXERR),
+            ModbusSetpoint(key=WavinSentioSetpointKey.SETPOINT_MINOR, read_address=2, max=ValueLimit.UINT8_MAXERR),
+            ModbusSetpoint(key=WavinSentioSetpointKey.MODBUS_MODE,    read_address=5, max=ValueLimit.UINT8_MAXERR, extra={"read": Read.STARTUP_ALWAYS}), # important to know how to react to writes
             ModbusSetpoint(key=WavinSentioSetpointKey.MODBUS_PASSWORD, write_address=6, extra={"read": Read.STARTUP_ALWAYS}),
-            ModbusSetpoint(key=WavinSentioSetpointKey.LOCATION_NAME, read_address=10, read_length=16, write_address=10, write_length=16, value_type=ModbusValueTypes.UTF8),
+            ModbusSetpoint(key=WavinSentioSetpointKey.LOCATION_NAME, read_address=10, read_length=16, write_address=10, write_length=16, value_type=ModbusValueType.UTF8),
             ModbusSetpoint(key=WavinSentioSetpointKey.STANDBY_ENABLE, read_address=26, write_address=26, max=1),
             ModbusSetpoint(key=WavinSentioSetpointKey.VACATION_ENABLE, read_address=27, write_address=27, max=1),
-            ModbusSetpoint(key=WavinSentioSetpointKey.DATETIME_UNIX, read_address=28, read_length=2, write_address=28, write_length=2, max=ValueLimits.UINT32_MAXERR),
+            ModbusSetpoint(key=WavinSentioSetpointKey.DATETIME_UNIX, read_address=28, read_length=2, write_address=28, write_length=2, max=ValueLimit.UINT32_MAXERR),
             ModbusSetpoint(key=WavinSentioSetpointKey.DAYLIGHT_SAVING_ENABLE, read_address=30, write_address=30, max=1),
-            ModbusSetpoint(key=WavinSentioSetpointKey.TEMP_OUTDOOR_COOLING_MIN, read_address=31, write_address=31, divider=100, max=ValueLimits.INT16_MAXERR),
-            ModbusSetpoint(key=WavinSentioSetpointKey.TEMP_OUTDOOR_HEATING_MAX, read_address=32, write_address=32, divider=100, max=ValueLimits.INT16_MAXERR),
+            ModbusSetpoint(key=WavinSentioSetpointKey.TEMP_OUTDOOR_COOLING_MIN, read_address=31, write_address=31, divider=100, max=ValueLimit.INT16_MAXERR),
+            ModbusSetpoint(key=WavinSentioSetpointKey.TEMP_OUTDOOR_HEATING_MAX, read_address=32, write_address=32, divider=100, max=ValueLimit.INT16_MAXERR),
             
-            ModbusSetpoint(key=WavinSentioSetpointKey.ROOM_1_NAME, read_address=101, read_length=16, write_address=101, write_length=16, value_type=ModbusValueTypes.UTF8),
+            ModbusSetpoint(key=WavinSentioSetpointKey.ROOM_1_NAME, read_address=101, read_length=16, write_address=101, write_length=16, value_type=ModbusValueType.UTF8),
             ModbusSetpoint(key=WavinSentioSetpointKey.ROOM_1_MODE, read_address=117, write_address=117, max=1),
             ModbusSetpoint(key=WavinSentioSetpointKey.ROOM_1_MODE_OVERRIDE, read_address=118, write_address=118, max=3),
-            ModbusSetpoint(key=WavinSentioSetpointKey.ROOM_1_TEMP_AIR_TARGET, read_address=119, write_address=119, divider=100, max=ValueLimits.INT16_MAXERR),
+            ModbusSetpoint(key=WavinSentioSetpointKey.ROOM_1_TEMP_AIR_TARGET, read_address=119, write_address=119, divider=100, max=ValueLimit.INT16_MAXERR),
             ModbusSetpoint(key=WavinSentioSetpointKey.ROOM_1_LOCK, read_address=120, write_address=120, max=32),
-            ModbusSetpoint(key=WavinSentioSetpointKey.ROOM_1_TEMP_STANDBY, read_address=121, write_address=121, divider=100, max=ValueLimits.INT16_MAXERR),
-            ModbusSetpoint(key=WavinSentioSetpointKey.ROOM_1_TEMP_VACATION, read_address=122, write_address=122, divider=100, max=ValueLimits.INT16_MAXERR),
+            ModbusSetpoint(key=WavinSentioSetpointKey.ROOM_1_TEMP_STANDBY, read_address=121, write_address=121, divider=100, max=ValueLimit.INT16_MAXERR),
+            ModbusSetpoint(key=WavinSentioSetpointKey.ROOM_1_TEMP_VACATION, read_address=122, write_address=122, divider=100, max=ValueLimit.INT16_MAXERR),
             ModbusSetpoint(key=WavinSentioSetpointKey.ROOM_1_EXCLUDE_FROM_VACATION, read_address=123, write_address=123, max=1),
             ModbusSetpoint(key=WavinSentioSetpointKey.ROOM_1_ADAPTIVE_ENABLE, read_address=124, write_address=124, max=1),
-            ModbusSetpoint(key=WavinSentioSetpointKey.ROOM_1_THERMAL_INTEGRATION_HEATING_OFFSET, read_address=125, write_address=125, divider=100, max=ValueLimits.INT16_MAXERR),
-            ModbusSetpoint(key=WavinSentioSetpointKey.ROOM_1_THERMAL_INTEGRATION_HYSTERESIS, read_address=126, write_address=126, divider=100, max=ValueLimits.INT16_MAXERR),
-            ModbusSetpoint(key=WavinSentioSetpointKey.ROOM_1_HUMIDITY_THRESHOLD_HEATING, read_address=127, write_address=127, divider=100, max=ValueLimits.INT16_MAXERR),
-            ModbusSetpoint(key=WavinSentioSetpointKey.ROOM_1_HUMIDITY_THRESHOLD_COOLING, read_address=128, write_address=128, divider=100, max=ValueLimits.INT16_MAXERR),
-            ModbusSetpoint(key=WavinSentioSetpointKey.ROOM_1_HUMIDITY_HYSTERESIS, read_address=129, write_address=129, divider=100, max=ValueLimits.INT16_MAXERR),
+            ModbusSetpoint(key=WavinSentioSetpointKey.ROOM_1_THERMAL_INTEGRATION_HEATING_OFFSET, read_address=125, write_address=125, divider=100, max=ValueLimit.INT16_MAXERR),
+            ModbusSetpoint(key=WavinSentioSetpointKey.ROOM_1_THERMAL_INTEGRATION_HYSTERESIS, read_address=126, write_address=126, divider=100, max=ValueLimit.INT16_MAXERR),
+            ModbusSetpoint(key=WavinSentioSetpointKey.ROOM_1_HUMIDITY_THRESHOLD_HEATING, read_address=127, write_address=127, divider=100, max=ValueLimit.INT16_MAXERR),
+            ModbusSetpoint(key=WavinSentioSetpointKey.ROOM_1_HUMIDITY_THRESHOLD_COOLING, read_address=128, write_address=128, divider=100, max=ValueLimit.INT16_MAXERR),
+            ModbusSetpoint(key=WavinSentioSetpointKey.ROOM_1_HUMIDITY_HYSTERESIS, read_address=129, write_address=129, divider=100, max=ValueLimit.INT16_MAXERR),
         ]
         
         # for key in WavinSentioDatapointKey:
@@ -701,15 +701,15 @@ class WavinSentio(ModbusDeviceBase):
         #         parts = key.split("_")
         #         no = int(parts[2]) #point_periphral_NO_xxx
         #         peripheral_start = 51000 + no*100
-        #         if key.endswith("_type"): self._attr_datapoints.append(ModbusDatapoint(key=key, read_address=peripheral_start+1, max=ValueLimits.UINT16_MAXERR))
-        #         if key.endswith("_sn"): self._attr_datapoints.append(ModbusDatapoint(key=key, read_address=peripheral_start+2, read_length=2, max=ValueLimits.UINT32_MAXERR))
-        #         if key.endswith("_owner"): self._attr_datapoints.append(ModbusDatapoint(key=key, read_address=peripheral_start+4, max=ValueLimits.UINT16_MAXERR))
-        #         if key.endswith("_signal_strength"): self._attr_datapoints.append(ModbusDatapoint(key=key, read_address=peripheral_start+5, max=ValueLimits.UINT8_MAXERR))
+        #         if key.endswith("_type"): self._attr_datapoints.append(ModbusDatapoint(key=key, read_address=peripheral_start+1, max=ValueLimit.UINT16_MAXERR))
+        #         if key.endswith("_sn"): self._attr_datapoints.append(ModbusDatapoint(key=key, read_address=peripheral_start+2, read_length=2, max=ValueLimit.UINT32_MAXERR))
+        #         if key.endswith("_owner"): self._attr_datapoints.append(ModbusDatapoint(key=key, read_address=peripheral_start+4, max=ValueLimit.UINT16_MAXERR))
+        #         if key.endswith("_signal_strength"): self._attr_datapoints.append(ModbusDatapoint(key=key, read_address=peripheral_start+5, max=ValueLimit.UINT8_MAXERR))
         # for key in WavinSentioSetpointKey:
         #     if key.find("peripheral") != -1:
         #         parts = key.split("_")
         #         no = int(parts[2]) #xpoint_periphral_NO_xxx
         #         peripheral_start = 51000 + no*100
-        #         if key.endswith("_name"): self._attr_setpoints.append(ModbusSetpoint(key=key, read_address=peripheral_start+1, read_length=16, value_type=ModbusValueTypes.UTF8))
+        #         if key.endswith("_name"): self._attr_setpoints.append(ModbusSetpoint(key=key, read_address=peripheral_start+1, read_length=16, value_type=ModbusValueType.UTF8))
 
         #place config modifiers here

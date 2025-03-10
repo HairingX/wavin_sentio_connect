@@ -21,5 +21,5 @@ class WavinSentioDeviceAdapter(ModbusDeviceAdapter):
             _LOGGER.error(f"Update your device firmware. Version {MAJOR_REQUIRED}.{MINOR_REQUIRED} required. Current version: {device_info.version.datapoint_major}.{device_info.version.datapoint_minor}")
         return WavinSentio
 
-class WavinSentioConnect(ModbusTCPEventConnect):
+class WavinSentioTCPConnect(ModbusTCPEventConnect):
    _attr_adapter = WavinSentioDeviceAdapter()

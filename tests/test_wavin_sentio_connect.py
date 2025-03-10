@@ -10,7 +10,7 @@ import pytest
 
 from credentials import Credentials
 from src.wavin_sentio_connect import (
-    WavinSentioConnect,
+    WavinSentioTCPConnect,
     WavinSentioDatapointKey,
     WavinSentioSetpointKey
 )
@@ -19,7 +19,7 @@ _LOGGER = logging.getLogger(__name__)
 
 @dataclass
 class TestData:
-    client: WavinSentioConnect
+    client: WavinSentioTCPConnect
     data = dict[str, Any]()
     credentials: Credentials
     
@@ -27,7 +27,7 @@ class TestData:
 async def testdata():
     #setup
     credentials = Credentials(["hostname"])
-    client = WavinSentioConnect()
+    client = WavinSentioTCPConnect()
     await client.connect("DEVICE_ID", credentials.hostname)
     # 
     yield TestData(client=client, credentials=credentials)
@@ -62,7 +62,7 @@ async def test_connect(testdata: TestData):
 #     value = client.get_value(key)
 #     assert value is not None
 #     assert isinstance(value, int)
-#     assert value > ValueLimits.INT16_MAX, f"Expected value greater than {ValueLimits.INT16_MAX}, got {value}"
+#     assert value > ValueLimit.INT16_MAX, f"Expected value greater than {ValueLimit.INT16_MAX}, got {value}"
 #     _LOGGER.debug(f"fromtimestamp(UTC): {datetime.fromtimestamp(value, UTC)}")
     
 # async def test_request_setpoint_value_type_int(testdata: TestData):

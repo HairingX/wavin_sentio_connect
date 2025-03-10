@@ -3,14 +3,15 @@ from typing import List
 
 try:
     #try to import from mysecrets.py, if it exists
-    from mysecrets import USERNAME, PASSWORD, ACCESS_TOKEN, REFRESH_TOKEN, TOKEN_TYPE, LOCATION_ID, HOSTNAME
-    U = USERNAME
-    P = PASSWORD
-    AT = ACCESS_TOKEN
-    RT = REFRESH_TOKEN
-    TT = TOKEN_TYPE
-    LOC_ID = LOCATION_ID
-    HOST = HOSTNAME
+    # from mysecrets import USERNAME, PASSWORD, ACCESS_TOKEN, REFRESH_TOKEN, TOKEN_TYPE, LOCATION_ID, HOSTNAME
+    from mysecrets import *
+    # U = USERNAME
+    # P = PASSWORD
+    # AT = ACCESS_TOKEN
+    # RT = REFRESH_TOKEN
+    # TT = TOKEN_TYPE
+    # LOC_ID = LOCATION_ID
+    # HOST = HOSTNAME
 except ModuleNotFoundError:
     pass
 
