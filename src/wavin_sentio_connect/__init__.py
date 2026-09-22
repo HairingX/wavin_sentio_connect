@@ -1,5 +1,5 @@
 from .devices import *
-from .wavin_sentio_connect import ( WavinSentioTCPConnect )
+from .wavin_sentio_connect import ( WavinSentioTCPConnect, SentioDiscovery, SentioRoom, SentioPeripheral )
 from modbus_event_connect import (  ModbusExceptCode,
                                     ModbusTCPErrorCode,
                                     ModbusPointKey,
@@ -19,8 +19,19 @@ __all__ = [
     "MODBUS_VALUE_TYPES",
     "UOM",
     "WavinSentioTCPConnect",
+    "SentioDiscovery",
+    "SentioRoom",
+    "SentioPeripheral",
+    "ROOM_COUNT",
+    "PERIPHERAL_COUNT",
     "WavinSentio",
-    "WavinSentioDatapointKey",
-    "WavinSentioSetpointKey",
     "WavinSentioBlockingSources",
+    "WavinSentioDatapointKey",
+    "WavinSentioRoomLock",
+    "WavinSentioRoomState",
+    "WavinSentioRoomType",
+    "WavinSentioSetpointKey",
+    "WavinPeripheralTypes",
+    "peripheral_base",
+    "room_base",
     ]

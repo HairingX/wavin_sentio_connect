@@ -32,7 +32,7 @@ async def testdata():
     # 
     yield TestData(client=client, credentials=credentials)
     #teardown
-    client.stop()
+    await client.stop()
 
 async def test_connect(testdata: TestData):
     client = testdata.client
