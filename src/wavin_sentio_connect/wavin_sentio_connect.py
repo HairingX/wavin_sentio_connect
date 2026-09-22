@@ -1,9 +1,8 @@
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Dict, List
-from modbus_event_connect import (  # type: ignore
-    MODBUS_VALUE_TYPES,
+from typing import List
+from modbus_event_connect import (
     ModbusDevice,
     ModbusDeviceInfo,
     ModbusTCPEventConnect,
@@ -109,8 +108,8 @@ class SentioDiscovery:
     which room they belong to so they can be linked to it.
     """
 
-    rooms: List[SentioRoom] = field(default_factory=list)
-    peripherals: List[SentioPeripheral] = field(default_factory=list)
+    rooms: List[SentioRoom] = field(default_factory=list[SentioRoom])
+    peripherals: List[SentioPeripheral] = field(default_factory=list[SentioPeripheral])
 
     def room(self, number: int) -> SentioRoom|None:
         """The room with this number, or None if the controller does not have it."""
@@ -153,24 +152,11 @@ class WavinSentioTCPConnect(ModbusTCPEventConnect):
         # Per instance, so two controllers in one process do not share a device model.
         self._attr_adapter = WavinSentioDeviceAdapter()
         self._discovery = SentioDiscovery()
-        self._absent_keys: set[ModbusPointKey] = set()
 
     @property
     def discovery(self) -> SentioDiscovery:
         """What the last discover() found. Empty until discover() has run."""
         return self._discovery
-
-    def provides(self, key: ModbusPointKey) -> bool:
-        """
-        Whether this controller has the point at all.
-
-        After discovery this is False for every room and peripheral the installation does not
-        have, so a consumer can ask before building an entity rather than creating one that
-        will never hold a value.
-        """
-        if key in self._absent_keys:
-            return False
-        return super().provides(key)
 
     async def _discover_device(self) -> None:
         """Run discovery as part of connect(), so a consumer never sees the full 1046 keys."""
@@ -269,15 +255,8 @@ class WavinSentioTCPConnect(ModbusTCPEventConnect):
                     number = int(name.split(marker, 1)[1].split("_", 1)[0])
                     if number in missing:
                         absent.add(key)
-                        self._attr_adapter.set_read(key, False, force=True)
                     break
-        self._absent_keys = absent
+        # One call for the whole group. The library keeps the record, gates reading on it and
+        # answers provides() from it, so there is nothing left for this class to remember.
+        self.set_available(absent, False, reason="room or peripheral not installed")
         _LOGGER.debug(f"Discovery marked {len(absent)} points as not provided by this unit")
-
-    def subscribe(self, key: ModbusPointKey, update_method: Callable[[ModbusPointKey, MODBUS_VALUE_TYPES|None, MODBUS_VALUE_TYPES|None], None]):
-        """Subscribe, refusing keys discovery proved this controller does not have."""
-        if key in self._absent_keys:
-            _LOGGER.warning(f"Ignoring subscription to '{key}': this controller has no such "
-                            f"room or peripheral")
-            return
-        super().subscribe(key, update_method)

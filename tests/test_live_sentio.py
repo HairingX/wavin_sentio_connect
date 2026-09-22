@@ -3,8 +3,8 @@
 These are skipped unless a host is configured, so the normal test run is unaffected.
 
     Configure it either way:
-        set SENTIO_HOST=192.168.1.50          (environment variable)
-        HOSTNAME = "192.168.1.50"             (in mysecrets.py, which is gitignored)
+        set SENTIO_HOST=<device-ip>          (environment variable)
+        SENTIO_HOST = "<device-ip>"          (in mysecrets.py, which is gitignored)
 
     Optional:
         SENTIO_PORT      default 502
@@ -20,12 +20,17 @@ replaces every write method with one that fails the test, so a write cannot slip
 Beyond pass/fail, these print what your system actually reports - which rooms exist, which
 peripherals are paired, what the real request limit is. Run with -s to see it.
 """
+import asyncio
 import logging
-import os
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass
+from typing import NoReturn
 
 import pytest
+import pytest_asyncio
+from modbus_event_connect import MODBUS_VALUE_TYPES, ModbusPointKey
 
+from conftest import live_or_skip, live_setting
 from src.wavin_sentio_connect import (
     ROOM_COUNT,
     PERIPHERAL_COUNT,
@@ -41,25 +46,14 @@ from src.wavin_sentio_connect import (
 _LOGGER = logging.getLogger(__name__)
 
 
-def _configured_host() -> str | None:
-    host = os.environ.get("SENTIO_HOST")
-    if host:
-        return host
-    try:
-        from mysecrets import HOSTNAME  # type: ignore
-        return HOSTNAME
-    except Exception:
-        return None
+HOST = live_setting("SENTIO_HOST")
+PORT = int(live_setting("SENTIO_PORT") or "502")
+UNIT_ID = int(live_setting("SENTIO_UNIT_ID") or "1")
 
-
-HOST = _configured_host()
-PORT = int(os.environ.get("SENTIO_PORT", "502"))
-UNIT_ID = int(os.environ.get("SENTIO_UNIT_ID", "1"))
-
-pytestmark = pytest.mark.skipif(
-    HOST is None,
-    reason="No Sentio host configured. Set SENTIO_HOST=<ip> or HOSTNAME in mysecrets.py",
-)
+pytestmark = [
+    pytest.mark.asyncio(loop_scope="module"),
+    *live_or_skip("Sentio", SENTIO_HOST=HOST),
+]
 
 
 @dataclass
@@ -69,7 +63,7 @@ class Live:
 
 def _forbid_writes(client: WavinSentioTCPConnect) -> None:
     """Make any write attempt fail loudly instead of reaching the controller."""
-    async def refuse(*args, **kwargs):
+    async def refuse(*_args: object, **_kwargs: object) -> NoReturn:
         raise AssertionError("A write was attempted. These tests are read-only.")
 
     transport = client.transport
@@ -80,8 +74,8 @@ def _forbid_writes(client: WavinSentioTCPConnect) -> None:
     client._request_setpoint_writes = refuse # type: ignore[assignment]
 
 
-@pytest.fixture
-async def live():
+@pytest_asyncio.fixture(loop_scope="module")  # pyright: ignore[reportUntypedFunctionDecorator, reportUnknownMemberType]
+async def live() -> AsyncGenerator[Live, None]:
     client = WavinSentioTCPConnect()
     assert HOST is not None   # guarded by the skipif above
     connected = await client.connect("live-test", HOST, port=PORT, unit_id=UNIT_ID)
@@ -99,11 +93,11 @@ async def live():
     await client.stop()
 
 
-def _value(client, key):
+def _value(client: WavinSentioTCPConnect, key: ModbusPointKey) -> MODBUS_VALUE_TYPES | None:
     return client.get_value(key)
 
 
-async def _read(client, *keys):
+async def _read(client: WavinSentioTCPConnect, *keys: ModbusPointKey) -> None:
     """Mark the keys for reading and fetch them.
 
     Only points flagged for reading are fetched, so a key must be requested before
@@ -188,7 +182,7 @@ async def test_string_registers_have_no_length_prefix(live: Live):
 async def test_read_all_rooms(live: Live):
     """Reads every room and reports which ones are real."""
     client = live.client
-    keys = []
+    keys: list[ModbusPointKey] = []
     for room in range(1, ROOM_COUNT + 1):
         keys += [
             WavinSentioDatapointKey[f"ROOM_{room}_TYPE"],
@@ -210,7 +204,7 @@ async def test_read_all_rooms(live: Live):
         if room_type is None:
             continue
         found += 1
-        def v(suffix):
+        def v(suffix: str, room: int = room) -> str:
             value = _value(client, WavinSentioDatapointKey[f"ROOM_{room}_{suffix}"])
             return f"{value:7.2f}" if isinstance(value, float) else f"{str(value):>7}"
         label = "NORMAL" if room_type == WavinSentioRoomType.NORMAL else "DUMMY"
@@ -229,7 +223,7 @@ async def test_temperatures_are_plausible(live: Live):
     A value near 655 means an unsigned decode of a negative number, which was the original bug.
     """
     client = live.client
-    suspicious = []
+    suspicious: list[tuple[ModbusPointKey, MODBUS_VALUE_TYPES]] = []
     for room in range(1, ROOM_COUNT + 1):
         for suffix in ("TEMP_AIR_CURRENT", "TEMP_FLOOR_CURRENT", "DEW_POINT_CURRENT"):
             key = WavinSentioDatapointKey[f"ROOM_{room}_{suffix}"]
@@ -339,3 +333,35 @@ async def test_discrete_inputs_are_readable(live: Live):
         base = room_base(room)
         room_bits = await transport.read_discrete_inputs(base + 1, 4)
         print(f"  room {room} DI {base+1}-{base+4}: {room_bits}")
+
+
+async def test_every_key_delivers_to_a_subscriber(live: Live):
+    """
+    Subscribes to every key the model declares and reports which ones produced a value.
+
+    This is the sweep that catches a key the model declares but the controller does not
+    answer for. It asserts only that the event path works at all - which keys a particular
+    installation has depends on its rooms and peripherals, so demanding all of them would
+    fail on a smaller system than the one it was written against.
+    """
+    client = live.client
+    received: dict[ModbusPointKey, MODBUS_VALUE_TYPES | None] = {}
+
+    def on_change(key: ModbusPointKey,
+                  old_value: MODBUS_VALUE_TYPES | None,
+                  new_value: MODBUS_VALUE_TYPES | None) -> None:
+        received[key] = new_value
+
+    keys: list[ModbusPointKey] = [*WavinSentioDatapointKey, *WavinSentioSetpointKey]
+    for key in keys:
+        client.subscribe(key, on_change)
+
+    await client.request_datapoint_read()
+    await client.request_setpoint_read()
+    await asyncio.sleep(0)
+
+    answered = [key for key, value in received.items() if value is not None]
+    print("\n--- subscriber delivery ---")
+    print(f"  keys declared : {len(keys)}")
+    print(f"  keys answered : {len(answered)}")
+    assert answered, "not one key delivered a value to its subscriber"

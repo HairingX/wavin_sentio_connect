@@ -32,7 +32,7 @@ def on_change(key, old_value, new_value):
 
 async def main():
     client = WavinSentioTCPConnect()
-    await client.connect("my-sentio", "192.168.1.50")
+    await client.connect("my-sentio", "<device-ip>")
 
     # connect() discovers what this controller actually has, so subscribe to that
     # rather than to the whole register map.
@@ -158,7 +158,7 @@ waste:
 ```python
 from modbus_event_connect import PymodbusTransport
 
-transport = PymodbusTransport(host="192.168.1.50", port=502, unit_id=1)
+transport = PymodbusTransport(host="<device-ip>", port=502, unit_id=1)
 client = WavinSentioTCPConnect(transport=transport)
 ```
 

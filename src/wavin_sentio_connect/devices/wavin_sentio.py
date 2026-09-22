@@ -9,7 +9,7 @@ This file is generated; see the generator noted in docs/implementation-status.md
 """
 import logging
 from enum import auto
-from modbus_event_connect import ( # type: ignore
+from modbus_event_connect import (
         ModbusDatapoint,
         ModbusDatapointKey,
         ModbusDeviceBase,
