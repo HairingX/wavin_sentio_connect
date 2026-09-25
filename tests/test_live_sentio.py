@@ -23,7 +23,7 @@ from modbus_event_connect import Client, DataValue, Quality, ReadOnlyError, Unit
 from modbus_event_connect.modbus import FunctionCode, ModbusDevice, ModbusTcpConnection, Request
 
 from conftest import live_or_skip, live_setting
-from src.wavin_sentio_connect import SENTIO, peripherals, rooms
+from src.wavin_sentio_connect import SENTIO, RoomPointKey, peripherals, room_key, rooms
 
 HOST = live_setting("SENTIO_HOST")
 PORT = int(live_setting("SENTIO_PORT") or "502")
@@ -101,9 +101,9 @@ async def test_the_installed_rooms_are_found(live: Live) -> None:
     found = rooms(client)
     print("\n--- rooms ---")
     for room in found:
-        air = client.value(f"room_{room.number}_temp_air_current")
+        air = client.value(room_key(room.number, RoomPointKey.TEMP_AIR_CURRENT))
         print(f"  {room.number:>2} {room.name!r:24} {'dummy' if room.is_dummy else 'normal':6} "
-              f"air={air.value if air else None} ({air.quality.name if air else '-'})  keys={len(room.keys)}")
+              f"air={air.value if air else None} ({air.quality.name if air else '-'})")
     assert found, "no room answered; check that rooms are configured on the controller"
     assert len(client.instances("room")) == len(found)
 

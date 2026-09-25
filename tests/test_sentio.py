@@ -248,7 +248,6 @@ def test_the_rooms_describe_the_installation() -> None:
     found = {r.number: r for r in rooms(client)}
     assert (found[1].name, found[1].is_dummy) == ("Kitchen", False)
     assert (found[3].name, found[3].is_dummy) == ("Hall", True)
-    assert "room_1_temp_air_current" in found[1].keys
 
 
 def test_the_peripherals_describe_the_installation() -> None:

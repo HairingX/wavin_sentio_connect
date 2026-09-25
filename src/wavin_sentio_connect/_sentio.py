@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from modbus_event_connect import Client, Clock, Labels
+from modbus_event_connect import Client, Clock
 from modbus_event_connect.modbus import ModbusConnection, ModbusDevice
 
 from ._model import (
@@ -53,8 +53,6 @@ class SentioRoom:
     """As configured on the controller, e.g. "Kitchen". Empty if never named."""
     is_dummy: bool
     """A dummy room has no thermostat or sensor, so it reports no measurements."""
-    keys: tuple[str, ...]
-    """Every key this room has on this unit."""
 
 
 @dataclass(frozen=True)
@@ -68,7 +66,6 @@ class SentioPeripheral:
     serial_number: int | None
     owner: int | None
     """0 = the location itself, 1-16 = that room."""
-    keys: tuple[str, ...]
 
     @property
     def model(self) -> str:
@@ -91,7 +88,6 @@ def rooms(client: Client) -> list[SentioRoom]:
             number=n,
             name=name.value if name is not None and isinstance(name.value, str) else "",
             is_dummy=room_type is not None and room_type.value == RoomType.DUMMY,
-            keys=tuple(p.key for p in client.select(Labels(room=n))),
         ))
     return found
 
@@ -106,7 +102,6 @@ def peripherals(client: Client) -> list[SentioPeripheral]:
             type=_integer(client, peripheral_key(slot, PeripheralPointKey.TYPE)),
             serial_number=_integer(client, peripheral_key(slot, PeripheralPointKey.SERIAL_NUMBER)),
             owner=_integer(client, peripheral_key(slot, PeripheralPointKey.OWNER)),
-            keys=tuple(p.key for p in client.select(Labels(peripheral=slot))),
         ))
     return found
 
