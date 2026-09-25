@@ -387,48 +387,50 @@ def rereads(group: str, **where: int) -> Refresh:
 
 # ================================================================================ encodings
 #
-# How the manual's value types map to points, and which raw value means "no reading".
+# How the manual's value types map to points. Its data type table gives each type's range and
+# its "invalid value", which is no reading; a register may give fewer values than its type.
 
 def _u8[T](key: Key[T], read: InputRegister | HoldingRegister, *, write: HoldingRegister | None = None,
            maximum: int = 254, poll_rate: PollRate = PollRate.SLOW, unit: Unit | None = None,
            on_write: Refresh | None = None, labels: Mapping[str, str] | None = None) -> Point[T]:
-    """val_u1: 0 to `maximum`; anything above - 255 in particular - means no value."""
-    return Point(key, read=read, write=write, data_type=DataType.UINT16, raw_range=(0, maximum), poll_rate=poll_rate,
+    """val_u1: 0 to `maximum`; anything above - its invalid 0xFF in particular - is no value."""
+    return Point(key, read=read, write=write, data_type=DataType.UINT16, valid_raw=range(0, maximum + 1),
+                 poll_rate=poll_rate,
                  unit=unit, limits=Limits(0, maximum, step=1) if write is not None else None, on_write=on_write,
                  labels=labels or {})
 
 
 def _flag(key: Key[bool], register: HoldingRegister, *, on_write: Refresh | None = None) -> Point[bool]:
-    """val_u1 read as off (0) or on (1); anything else - 255 in particular - means no value."""
-    return Point(key, read=register, write=register, data_type=DataType.BOOL, raw_range=(0, 1),
+    """val_u1 given as "0 OFF, 1 ON"; anything else - its invalid 0xFF in particular - is no value."""
+    return Point(key, read=register, write=register, data_type=DataType.BOOL, valid_raw=range(0, 2),
                  poll_rate=PollRate.SLOW, on_write=on_write)
 
 
 def _choice[T](key: Key[T], register: HoldingRegister, *, on_write: Refresh | None = None) -> Point[T]:
-    """val_u1 naming a state, written as one of them; 255 means no value."""
-    return Point(key, read=register, write=register, data_type=DataType.UINT16, raw_range=(0, 254),
+    """val_u1 naming a state, written as one of them; its invalid 0xFF is no value."""
+    return Point(key, read=register, write=register, data_type=DataType.UINT16, valid_raw=range(0, 0xFF),
                  poll_rate=PollRate.SLOW, on_write=on_write)
 
 
-def _u16[T](key: Key[T], read: InputRegister | HoldingRegister | None, *, write: HoldingRegister | None = None,
+def _u16[T](key: Key[T], read: InputRegister | HoldingRegister, *, write: HoldingRegister | None = None,
             poll_rate: PollRate = PollRate.SLOW, write_kind: WriteKind = WriteKind.STATE) -> Point[T]:
-    """val_u2: 0xFFFF means no value."""
+    """val_u2: 0 to 0xFFFE; its invalid 0xFFFF is no value."""
     return Point(key, read=read, write=write, data_type=DataType.UINT16, poll_rate=poll_rate, write_kind=write_kind,
-                 no_data=(0xFFFF,) if read is not None else ())
+                 valid_raw=range(0, 0xFFFF))
 
 
 def _u32(key: Key[int], read: InputRegister | HoldingRegister, *, write: HoldingRegister | None = None,
          poll_rate: PollRate = PollRate.SLOW, unit: Unit | None = None) -> Point[int]:
-    """val_u4: 0xFFFFFFFF means no value."""
-    return Point(key, read=read, write=write, data_type=DataType.UINT32, no_data=(0xFFFFFFFF,),
+    """val_u4: 0 to 0xFFFFFFFE; its invalid 0xFFFFFFFF is no value."""
+    return Point(key, read=read, write=write, data_type=DataType.UINT32, valid_raw=range(0, 0xFFFFFFFF),
                  poll_rate=poll_rate, unit=unit)
 
 
 def _fp100(key: Key[float], read: InputRegister | HoldingRegister, *, write: HoldingRegister | None = None,
            poll_rate: PollRate = PollRate.SLOW, unit: Unit | None = Unit.CELSIUS, on_write: Refresh | None = None,
            labels: Mapping[str, str] | None = None) -> Point[float]:
-    """val_d2_fp100: signed hundredths; 0x7FFF means no reading."""
-    return Point(key, read=read, write=write, data_type=DataType.INT16, scale=0.01, no_data=(0x7FFF,),
+    """val_d2_fp100: signed hundredths, -327.68 to 327.66; its invalid 0x7FFF is no reading."""
+    return Point(key, read=read, write=write, data_type=DataType.INT16, scale=0.01, valid_raw=range(-0x8000, 0x7FFF),
                  poll_rate=poll_rate, unit=unit, on_write=on_write, labels=labels or {})
 
 
@@ -468,10 +470,11 @@ LOCATION = [
     _u8(LocationPointKey.SETPOINT_MAJOR, HoldingRegister(1), poll_rate=PollRate.STATIC),
     _u8(LocationPointKey.SETPOINT_MINOR, HoldingRegister(2), poll_rate=PollRate.STATIC),
     # Whether the controller will accept writes at all, so it is always kept current.
-    Point(LocationPointKey.MODBUS_MODE, read=HoldingRegister(5), data_type=DataType.UINT16, raw_range=(0, 254),
+    Point(LocationPointKey.MODBUS_MODE, read=HoldingRegister(5), data_type=DataType.UINT16, valid_raw=range(0, 0xFF),
           poll_always=True),
-    # Write-only per the manual: it can never be read back.
-    _u16(LocationPointKey.MODBUS_PASSWORD, None, write=HoldingRegister(6), write_kind=WriteKind.COMMAND),
+    # Write-only per the manual: it can never be read back. The manual: "range for password is 1 - 65534".
+    Point(LocationPointKey.MODBUS_PASSWORD, write=HoldingRegister(6), data_type=DataType.UINT16,
+          write_kind=WriteKind.COMMAND, valid_raw=range(1, 0xFFFF)),
     _text(LocationPointKey.LOCATION_NAME, HoldingRegister(10), write=HoldingRegister(10)),
     _flag(LocationPointKey.STANDBY_ENABLE, HoldingRegister(26), on_write=rereads(ROOM_TARGET)),
     _flag(LocationPointKey.VACATION_ENABLE, HoldingRegister(27), on_write=rereads(ROOM_TARGET)),

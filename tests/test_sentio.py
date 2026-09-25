@@ -190,7 +190,8 @@ def test_text_is_sixteen_registers_and_temperatures_are_signed_hundredths() -> N
     assert resolved.point("location_name").data_type.kind is DataTypeKind.STRING
     assert resolved.point("location_name").registers == 16
     temp = resolved.point("room_1_temp_air_current")
-    assert (temp.data_type.kind, temp.scale, 0x7FFF in temp.no_data) == (DataTypeKind.INT16, 0.01, True)
+    assert (temp.data_type.kind, temp.scale) == (DataTypeKind.INT16, 0.01)
+    assert temp.valid_raw is not None and 0x7FFF not in temp.valid_raw and -0x8000 in temp.valid_raw
 
 
 def test_the_room_lock_is_a_closed_set() -> None:
