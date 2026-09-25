@@ -22,8 +22,8 @@ typeCheckingMode = "strict"
 reportMissingTypeStubs = "none"
 
 [[tool.pyright.executionEnvironments]]
-# Tests import the package as `src.wavin_sentio_connect` and each other as `conftest`,
-# exactly as pytest resolves them from the repository root.
+# Tests import the installed package, as its users do (pip install -e .), and each other as
+# `conftest`, as pytest resolves them from the tests directory.
 root = "tests"
-extraPaths = [".", "tests"]
+extraPaths = ["tests"]
 reportPrivateUsage = "none"

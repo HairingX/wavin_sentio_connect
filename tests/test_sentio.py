@@ -26,7 +26,7 @@ from modbus_event_connect.testing import (
     resolve,
 )
 
-from src.wavin_sentio_connect import (
+from wavin_sentio_connect import (
     SENTIO,
     UNITS,
     LocationPointKey,
@@ -46,7 +46,7 @@ from src.wavin_sentio_connect import (
     room_key,
     rooms,
 )
-from src.wavin_sentio_connect._model import PERIPHERAL_COUNT, ROOM_COUNT, peripheral_base, room_base
+from wavin_sentio_connect._model import PERIPHERAL_COUNT, ROOM_COUNT, peripheral_base, room_base
 
 
 def _text(text: str, registers: int = 16) -> list[int]:

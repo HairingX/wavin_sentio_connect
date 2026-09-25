@@ -24,7 +24,7 @@ from modbus_event_connect import Client, DataValue, Key, Quality, ReadOnlyError,
 from modbus_event_connect.modbus import FunctionCode, ModbusDevice, ModbusTcpConnection, Request
 
 from conftest import live_or_skip, live_setting
-from src.wavin_sentio_connect import (
+from wavin_sentio_connect import (
     SENTIO,
     LocationPointKey,
     RoomPointKey,
