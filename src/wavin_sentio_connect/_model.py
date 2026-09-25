@@ -534,7 +534,7 @@ SENTIO = Model(
     name="Sentio",
     manufacturer="Wavin",
     options=ModbusOptions(numbering=plain(first_address=1), max_registers=MAX_REGISTERS),  # verified live
-    read_back_after=0.25,  # measured with testing.measure_read_back on a CCU-208, address space 3.7
+    read_back_after=0.5,  # measured with testing.measure_read_back on a CCU-208, address space 3.7
     sections=[
         Section(LOCATION),
         Instances(room, range(1, ROOM_COUNT + 1), label=ROOM),
