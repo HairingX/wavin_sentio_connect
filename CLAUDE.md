@@ -62,5 +62,5 @@ dependencies from PyPI. **Release the library first**: a version of this package
 an unpublished library fails that check, and nothing is tagged.
 
 PyPI trusted publishing is bound to this repository, the file `release.yml` and the `pypi`
-environment: renaming either breaks the upload. Actions are pinned to commit SHAs; Dependabot
-proposes updates to them and to the test tools as pull requests.
+environment: renaming either breaks the upload. Actions are referred to by their major version;
+Dependabot proposes a new major, and updates to the test tools, as pull requests.
