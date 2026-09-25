@@ -163,3 +163,6 @@ cython_debug/
 
 mysecrets*.py
 docs/temp/
+
+# Local agent worktrees; each is a checkout of this repository, never part of it.
+.claude/worktrees/
