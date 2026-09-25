@@ -161,4 +161,8 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-mysecrets.py
+mysecrets*.py
+docs/temp/
+
+# Local agent worktrees; each is a checkout of this repository, never part of it.
+.claude/worktrees/

@@ -1,0 +1,345 @@
+object,object_base,table,address,registers,offset,parameter,access,data_type,fw_3_2,fw_3_3,fw_3_4,description
+Location,0,DI,1,1,1,Aggregated warning,R,,YES,YES,YES,A problem is pending in whole system (Location)
+Location,0,DI,2,1,2,Aggregated error,R,,YES,YES,YES,A critical problem is pending in whole system (Location)
+Location,0,IR,1,1,1,Address space major version,R,val_u1,YES,YES,YES,= 3 (Incremented on incompatible change)
+Location,0,IR,2,1,2,Address space minor version,R,val_u1,CHANGED,CHANGED,YES,= 1 (Incremented on compatible change)
+Location,0,IR,10,1,10,Dev type,R,val_u1,YES,YES,YES,1 - CCU-208 2 - DHW-201 (Calefa)
+Location,0,IR,11,1,11,Dev hw version,R,val_u1,YES,YES,YES,
+Location,0,IR,12,1,12,Dev sw version,R,val_u1,YES,YES,YES,
+Location,0,IR,13,1,13,Dev sw version minor,R,val_u1,YES,YES,YES,
+Location,0,IR,14,1,14,Dev serial number prefix,R,val_u2,YES,YES,YES,= 1530
+Location,0,IR,15,2,15,Dev serial number,R,val_u4,YES,YES,YES,
+Location,0,IR,20,1,20,Heating/Cooling mode,R,val_u1,YES,YES,YES,0 - HEATING 1 - COOLING
+Location,0,HR,1,1,1,Address space major version,R/W,val_u1,YES,YES,YES,= 3 (Incremented on incompatible change)
+Location,0,HR,2,1,2,Address space minor version,R/W,val_u1,YES,YES,YES,= 1 (Incremented on compatible change)
+Location,0,HR,3,1,3,Modbus slave address,R/W,val_u1,YES,YES,YES,Allowed values: 1 to 247 Default: 1
+Location,0,HR,4,1,4,Modbus baudrate,R/W,val_u2,YES,YES,YES,"Allowed values: 9600, 19200, 38400, 57600 Default:19200"
+Location,0,HR,5,1,5,Modbus mode,R/W,val_u1,YES,YES,YES,0 DISABLED 1 READ_ONLY 2 READ_WRITE 3 WRITE_WITH_PASSWORD Default: 0
+Location,0,HR,6,1,6,Modbus password,W,val_u2,YES,YES,YES,"When Modbus mode = WRITE_WITH_PASSWORD, the write commands are disabled until this register is written by a valid password. Once the password is written, the the write comands are accepted for next 11 minutes. Then the password has to be set again. Two steps are required for password change: 1. Write the old password 2. Write the new password before 11 minutes elapses. Default password: 1234, Write only, range for password is 1 - 65534"
+Location,0,HR,7,1,7,Modbus parity,R/W,val_u1,YES,YES,YES,0 - NONE 1 - ODD 2 - EVEN
+Location,0,HR,8,1,8,Modbus stop bits,R/W,val_u1,YES,YES,YES,0 - 1 STOP BIT 1 - 2 STOP BITS
+Location,0,HR,10,16,10,Location name,R/W,val_utf8,YES,YES,YES,Placeholder for 32 bytes of location description. See “working with strings” chapter for more info.
+Location,0,HR,26,1,26,Standby,R/W,val_u1,YES,YES,YES,0 OFF 1 ON
+Location,0,HR,27,1,27,Vacation,R/W,val_u1,YES,YES,YES,0 OFF 1 ON
+Location,0,HR,28,2,28,Datetime,R/W,val_u4,YES,YES,YES,Current time - unit timestamp format - localtime including DST (if enabled) - minimum date is 2018-01-01 00:00:00 - maximum date is 2099-12-30 23:59:59
+Location,0,HR,30,1,30,Daylight saving time allowed,R/W,val_u1,YES,YES,YES,0 Disabled 1 Enabled
+Location,0,HR,31,1,31,Cooling minimum outdoor temperature,R/W,val_d2_fp100,YES,YES,YES,"Only available in hardware profiles, which support cooling. Cooling is blocked, when outdoor temperature is lower than this value. In profiles which support cooling, minimum outdoor temp for cooling must be >= maximum outdoor temp for heating"
+Location,0,HR,32,1,32,Heating maximum outdoor temperature,R/W,val_d2_fp100,YES,YES,YES,"Heating is blocked, when outdoor temperature is higher than this value. In profiles which support cooling, maximum outdoor temp for heating must be <= minimum outdoor temp for cooling"
+Location,0,HR,33,1,33,Update mode,R/W,val_u1,YES,YES,YES,0 Dont allow from mobile app 1 Enabled 2 Disabled entirely
+Location,0,HR,34,1,34,Heating/Cooling mode BMS override,R/W,val_u1,YES,YES,YES,"Note: Only available in hardware profiles, which support manual H/C change-over. In other profiles override is set to DISABLED. 0 - DISABLED 1 - HEATING MODE 2 - COOLING MODE 3 - H/C MODE SET BY EXTERNAL SWITCH (only when HW input is available)"
+Location,0,HR,35,1,35,Timezone number,R/W,val_u2,YES,YES,YES,"For list of supported timezones see tab ""Timezone list"""
+Location,0,HR,36,1,36,Cooling to Heating change-over outdoor temperature,R/W,val_d2_fp100,-,-,YES,Only available in hardware profiles 3.3.1 and 3.3.3 (Automatic H/C change-ver). Outdoor temperature for Cooling to Heating change-over <= outdoor temperature for Heating to Cooling change-over.
+Location,0,HR,37,1,37,Heating to Cooling change-over outdoor temperature,R/W,val_d2_fp100,-,-,YES,Only available in hardware profiles 3.3.1 and 3.3.3 (Automatic H/C change-ver). Outdoor temperature for Heating to Cooling change-over >= outdoor temperature for Cooling to Heating change-over.
+Room 1,100,DI,101,1,1,Aggregated warning,R,,YES,YES,YES,A problem is pending in Room
+Room 1,100,DI,102,1,2,Aggregated error,R,,YES,YES,YES,A critical problem is pending in Room
+Room 1,100,DI,103,1,3,Warning - low battery,R,,YES,YES,YES,There are one or more peripherals in the room with low battery.
+Room 1,100,DI,104,1,4,Error - peripheral lost,R,,YES,YES,YES,There are one or more peripherals in the room which are not responding.
+Room 1,100,IR,101,1,1,Desired temp,R,val_d2_fp100,YES,YES,YES,Shows the desired temperature in the room.
+Room 1,100,IR,102,1,2,General Heating/Cooling state (radiator | underfloor | integration),R,val_u1,YES,YES,YES,1 IDLE 2 HEATING 3 COOLING 4 BLOCKED_HEATING 5 BLOCKED_COOLING
+Room 1,100,IR,103,1,3,General Heating/Cooling blocking source (radiator | underfloor | integration),R,val_u1,YES,YES,YES,Please check top of the document - GENERAL BLOCKING SOURCES
+Room 1,100,IR,104,1,4,Air temperature,R,val_d2_fp100,YES,YES,YES,Current air temperature measured in the room.
+Room 1,100,IR,105,1,5,Floor temperature,R,val_d2_fp100,YES,YES,YES,Current floor temperature measured in the room.
+Room 1,100,IR,106,1,6,Relative humidity,R,val_d2_fp100,YES,YES,YES,Current humidity measured in the room.
+Room 1,100,IR,107,1,7,Calculated dew point,R,val_d2_fp100,YES,YES,YES,Current calculated dewpoint
+Room 1,100,IR,111,1,11,Associated to Radiators,R,val_u1,YES,YES,YES,0 .. NONE 73 .. ITC1 (Address of modbus object) 74 .. ITC2 (Address of modbus object) 77 .. HCC1 (Address of modbus object) 78 .. HCC2 (Address of modbus object) 79 .. HCC3 (Address of modbus object) 81 .. H/C Source (Address of modbus object)
+Room 1,100,IR,112,1,12,Associated to UFHC,R,val_u1,YES,YES,YES,0 .. NONE 73 .. ITC1 (Address of modbus object) 74 .. ITC2 (Address of modbus object) 77 .. HCC1 (Address of modbus object) 78 .. HCC2 (Address of modbus object) 79 .. HCC3 (Address of modbus object)
+Room 1,100,IR,114,1,14,Associated to Drying (humidity control),R,val_u1,YES,YES,YES,0 .. NONE 650 .. DEHUM 1 (Address of modbus object) 651 .. DEHUM 2 (Address of modbus object) 652 .. DEHUM 3 (Address of modbus object) 653 .. DEHUM 4 (Address of modbus object)
+Room 1,100,IR,115,1,15,Associated to Thermal integration (thermal. integ control),R,val_u1,YES,YES,YES,0 .. NONE 650 .. DEHUM 1 (Address of modbus object) 651 .. DEHUM 2 (Address of modbus object) 652 .. DEHUM 3 (Address of modbus object) 653 .. DEHUM 4 (Address of modbus object)
+Room 1,100,IR,116,1,16,Associated to Ventilation (air quality control),R,val_u1,-,YES,YES,0 .. NONE 610 .. Ventilation 1 (Address of modbus object) 611 .. Ventilation 2 (Address of modbus object)
+Room 1,100,IR,117,1,17,Radiators state (air temperature),R,val_u1,YES,YES,YES,0 NONE (not used in this room or load was not detected on at least one output) 1 IDLE 2 HEATING 3 COOLING 4 BLOCKED_HEATING 5 BLOCKED_COOLING
+Room 1,100,IR,118,1,18,Underfloor Heating/Cooling state (floor temperature),R,val_u1,YES,YES,YES,0 NONE (not used in this room or load was not detected on at least one output) 1 IDLE 2 HEATING 3 COOLING 4 BLOCKED_HEATING 5 BLOCKED_COOLING
+Room 1,100,IR,119,1,19,Drying state (relative humidity),R,val_u1,YES,YES,YES,0 NONE (not used in this room) 1 IDLE 2 DRYING 3 BLOCKED_DRYING
+Room 1,100,IR,120,1,20,Thermal integration state (air temperature),R,val_u1,YES,YES,YES,0 NONE (not used in this room) 1 IDLE 2 HEATING 3 COOLING 4 BLOCKED_HEATING 5 BLOCKED_COOLING
+Room 1,100,IR,121,1,21,Ventilation state,R,val_u1,-,YES,YES,0 NONE (not used in this room) 1 STOPPED 2 UNOCCUPIED 3 ECONOMY 4 COMFORT 5 BOOST 6 BLOCKED
+Room 1,100,IR,122,1,22,Blocking source - Radiators,R,val_u1,YES,YES,YES,Same as Heating/Cooling blocking source
+Room 1,100,IR,123,1,23,Blocking source - Underfloor Heating/Cooling,R,val_u1,YES,YES,YES,Same as Heating/Cooling blocking source
+Room 1,100,IR,124,1,24,Blocking source - Drying,R,val_u1,YES,YES,YES,Same as Heating/Cooling blocking source
+Room 1,100,IR,125,1,25,Blocking source - Integration,R,val_u1,YES,YES,YES,Same as Heating/Cooling blocking source
+Room 1,100,IR,126,1,26,Blocking source - Ventilation,R,val_u1,-,YES,YES,Same as Heating/Cooling blocking source
+Room 1,100,IR,127,1,27,Room type,R,val_u1,YES,YES,YES,0 - NORMAL (DEFAULT) 1 - DUMMY (no thermostat or sensor installed)
+Room 1,100,IR,128,1,28,Associated Heating Source,R,val_u1,YES,YES,YES,0 .. NONE 73 .. ITC1 (Address of modbus object) 74 .. ITC2 (Address of modbus object) 77 .. HCC1 (Address of modbus object) 78 .. HCC2 (Address of modbus object) 79 .. HCC3 (Address of modbus object) 81 .. H/C Source (Address of modbus object)
+Room 1,100,HR,101,16,1,Room name,R/W,val_utf8,YES,YES,YES,"String description (32 Bytes, UTF8, NULL terminated)"
+Room 1,100,HR,117,1,17,Room mode,R/W,val_u1,YES,YES,YES,"0 SCHEDULE 1 MANUAL In SCHEDULE mode, the “Room temperature setpoint” is not used and the room temperature is controlled by scheduler."
+Room 1,100,HR,118,1,18,Room mode override,R/W,val_u1,YES,YES,YES,"0 NONE 1 TEMPORARY 2 VACATION_AWAY 3 ADJUST NORMAL ROOM: In override mode (> NONE), the “Room temperaturesetpoint” is not used. The requested temperature is corrected by user via room thermostat or mobile application. You can disable the override mode by setting this value to 0 (NONE) DUMMY ROOM: In override mode (> NONE), the “Room temperature preset” is not used. The requested temperature preset is changed by user via LCD or mobile application. You can disable the override mode by setting this value to 0 (NONE)"
+Room 1,100,HR,119,1,19,Room temperature setpoint,R/W,val_d2_fp100,YES,YES,YES,"Temperature requested by user. This values is not used when - Room mode = SCHEDULE (Scheduler temperature is used) - Location.Vacation = ON (Vacation temperature is used) - Location.Standby = ON (Standby temperature is used) - Temporary mode is activated (User defined temperature is used) Writing invalid value (327,67) stops room heating/cooling demand only when Vacation or Standby is not active."
+Room 1,100,HR,120,1,20,User Interface access level (thermostat lock),R/W,val_u1,YES,YES,YES,8 LOCKED (Read Only) 16 HOTEL 32 UNLOCKED
+Room 1,100,HR,121,1,21,Standby temperature,R/W,val_d2_fp100,YES,YES,YES,"Room temperature setpoint used when the system is in Standby mode. Writing invalid value (327,67) stops room heating/cooling demand only when Standby is active."
+Room 1,100,HR,122,1,22,Vacation temperature,R/W,val_d2_fp100,YES,YES,YES,"Room temperature setpoint used when the system is in Vacation mode Writing invalid value (327,67) stops room heating/cooling demand only when Vacation is active."
+Room 1,100,HR,123,1,23,Exclude from vacation,R/W,val_u1,YES,YES,YES,Do not allow the Vacation mode in this room
+Room 1,100,HR,124,1,24,Adaptive mode,R/W,val_u1,YES,YES,YES,Allow adaptive mode
+Room 1,100,HR,125,1,25,Thermal integration heating offset,R/W,val_d2_fp100,YES,YES,YES,Thermal integration heating offset
+Room 1,100,HR,126,1,26,Thermal integration hysteresis,R/W,val_d2_fp100,YES,YES,YES,Thermal integration hysteresis
+Room 1,100,HR,127,1,27,Humidity threshold heating,R/W,val_d2_fp100,YES,YES,YES,Humidity threshold heating
+Room 1,100,HR,128,1,28,Humidity threshold cooling,R/W,val_d2_fp100,YES,YES,YES,Humidity threshold cooling
+Room 1,100,HR,129,1,29,Humidity hysteresis,R/W,val_d2_fp100,YES,YES,YES,Humidity hysteresis
+Room 1,100,HR,130,1,30,Drying - cooling water offset,R/W,val_d2_fp100,YES,YES,YES,Drying - cooling water offset
+Room 1,100,HR,131,1,31,Drying - cooling water offset hysteresis,R/W,val_d2_fp100,YES,YES,YES,Drying - cooling water offset hysteresis
+Room 1,100,HR,132,1,32,Dew point cooling threshold,R/W,val_d2_fp100,YES,YES,YES,Dew point threshold temp when cooling
+Room 1,100,HR,133,1,33,Dew point cooling threshold hysteresis,R/W,val_d2_fp100,YES,YES,YES,Dew point threshold temp hysteresis when cooling
+Room 1,100,HR,134,1,34,Humidity high alarm limit,R/W,val_d2_fp100,YES,YES,YES,Humidity high alarm limit
+Room 1,100,HR,135,1,35,Room temperature preset,R/W,val_u1,YES,YES,YES,0 - ECO 1 - COMFORT 2 - EXTRA COMFORT Temperature preset requested by user. This value is not used when - Room mode = SCHEDULE (Scheduler temperature is used) - Location.Vacation = ON (Vacation temperature is used) - Location.Standby = ON (Standby temperature is used) - Temporary mode is activated (User defined temperature is used)
+Outdoor 1,3300,DI,3301,1,1,Aggregated warning,R,,YES,YES,YES,A problem is pending in Outdoor zone
+Outdoor 1,3300,DI,3302,1,2,Aggregated error,R,,YES,YES,YES,A critical problem is pending in Outdoor zone
+Outdoor 1,3300,DI,3303,1,3,Warning - low battery,R,,YES,YES,YES,There are one or more peripherals in the Outdoor zone with low battery.
+Outdoor 1,3300,DI,3304,1,4,Error - peripheral lost,R,,YES,YES,YES,There are one or more peripherals in the Outdoor zone which are not responding.
+Outdoor 1,3300,IR,3301,1,1,Air Temp,R,val_d2_fp100,YES,YES,YES,"Used in H/C mode switching, H/C blocking"
+Outdoor 1,3300,IR,3302,1,2,Air Temp Filtered,R,val_d2_fp100,YES,YES,YES,"Used in heat curve calculations, frost protection"
+Outdoor 1,3300,IR,3303,1,3,Air Temp Geometrical,R,val_d2_fp100,YES,YES,YES,Not yet used
+Outdoor 1,3300,HR,3301,16,1,Name,R,val_utf8,YES,YES,YES,"String description (32 Bytes, UTF8, NULL terminated)"
+Outdoor 1,3300,HR,3317,1,17,Air Temp BMS Override,R/W,val_d2_fp100,YES,YES,YES,"Overrides Air Temp value (register 03301). Invalid value (327,67) means override is disabled."
+DHW 201,6500,DI,6501,1,1,Aggregated warning,R,,YES,YES,YES,A problem is pending in DHW
+DHW 201,6500,DI,6502,1,2,Aggregated error,R,,YES,YES,YES,A critical problem is pending in DHW
+DHW 201,6500,DI,6503,1,3,Warning - Retentive Low Energy,R,,YES,YES,YES,
+DHW 201,6500,DI,6504,1,4,Error - DHW temp high,R,,YES,YES,YES,
+DHW 201,6500,DI,6505,1,5,Error - Motor failure,R,,YES,YES,YES,
+DHW 201,6500,DI,6506,1,6,Error - DHI sensor failure (source inlet),R,,YES,YES,YES,
+DHW 201,6500,DI,6507,1,7,Error - DHO sensor failure (source return),R,,YES,YES,YES,
+DHW 201,6500,DI,6508,1,8,Error - DHW sensor failure,R,,YES,YES,YES,
+DHW 201,6500,DI,6509,1,9,Error - DCW sensor failure,R,,YES,YES,YES,
+DHW 201,6500,DI,6510,1,10,Warning - Pressure high,R,,YES,YES,YES,
+DHW 201,6500,DI,6511,1,11,Warning - Pressure low,R,,YES,YES,YES,
+DHW 201,6500,DI,6512,1,12,Error - Pressure critical low,R,,YES,YES,YES,
+DHW 201,6500,DI,6513,1,13,Error - flow sensor failure,R,,YES,YES,YES,
+DHW 201,6500,IR,6501,1,1,Desired DHW temp,R,val_d2_fp100,YES,YES,YES,Shows the desired temperature of the domestic hot water.
+DHW 201,6500,IR,6502,1,2,State,R,val_u1,YES,YES,YES,"1 IDLE 2 HEATING (hot water is consumed by user) 3 BYPASS (keeping heat exchanger hot for circulation) 4 BLOCKED_HEATING 5 BLOCKED_BYPASS Shows, whether the system wants to heat or to have bypass activated."
+DHW 201,6500,IR,6503,1,3,Blocking source,R,val_u1,YES,YES,YES,Please check top of the document - GENERAL BLOCKING SOURCES
+DHW 201,6500,IR,6504,1,4,Circulation state,R,val_u1,YES,YES,YES,0 NONE (disabled) 1 IDLE 2 ON
+DHW 201,6500,IR,6505,1,5,Measured DHW temp,R,val_d2_fp100,YES,YES,YES,Current temperature of the domestic hot water flowing from DHW
+DHW 201,6500,IR,6506,1,6,Source - Inlet temp,R,val_d2_fp100,YES,YES,YES,Current temperature of the water incoming from the heat source.
+DHW 201,6500,IR,6507,1,7,Source - Return temp,R,val_d2_fp100,YES,YES,YES,Current temperature of the water returning to the heat source.
+DHW 201,6500,IR,6508,1,8,Pressure,R,val_d2_fp100,YES,YES,YES,Current pressure of the secondary system
+DHW 201,6500,IR,6509,1,9,Domestic Cold Water Temp,R,val_d2_fp100,YES,YES,YES,On heat exchanger input
+DHW 201,6500,IR,6510,1,10,Domestic Cold Water flow,R,val_d2,YES,YES,YES,flow meter (analog) in l/h
+DHW 201,6500,IR,6511,1,11,Valve position,R,val_d2_fp100,YES,YES,YES,Valve position in flows
+DHW 201,6500,IR,6512,1,12,Boost pump state R,,val_u1,YES,YES,YES,Boost pump state 0 IDLE 1 ON
+DHW 201,6500,HR,6501,16,1,Name,R/W,val_utf8,YES,YES,YES,"String description (32 Bytes, UTF8, NULL terminated)"
+DHW 201,6500,HR,6517,1,17,Mode,R/W,val_u1,YES,YES,YES,0 SCHEDULE 1 SCHEDULE_ADAPTIVE 2 ECO 3 COMFORT Eco = circulation and hot bypass are disabled Comfort = circulation and hot bypass are enabled
+DHW 201,6500,HR,6518,1,18,User interface access level (calefa display lock),R/W,val_u1,YES,YES,YES,16 USER (user menu) 32 INSTALLER (inst. menu)
+DHW 201,6500,HR,6519,1,19,Block request,R/W,val_u1,YES,YES,YES,"0 NONE 1 BLOCK_REQUEST When BLOCK_REQUEST is set, then the system blocks heating and bypass to eliminate consumption from heat supplier."
+DHW 201,6500,HR,6520,1,20,Power consumption limit,R/W,val_u2,YES,YES,YES,
+DHW 201,6500,HR,6521,1,21,DHW temp set,R/W,val_d2_fp100,YES,YES,YES,Requested temperature of domestic hot water.
+DHW 201,6500,HR,6522,1,22,DHW bypass temp,R/W,val_d2_fp100,YES,YES,YES,
+DHW 201,6500,HR,6523,1,23,Circulation - Pump present,R/W,val_u1,YES,YES,YES,0 DISABLED 1 ENABLED (scheduler)
+DHW 201,6500,HR,6524,1,24,Circulation - Inlet temp,R/W,val_d2_fp100,YES,YES,YES,"When circulation is enabled and there is NO dhw consumption, then the DHW temperature is regulated to this value."
+DHW 201,6500,HR,6525,1,25,Exclude from vacation,R/W,val_u1,YES,YES,YES,Do not allow the Vacation mode
+DHW 201,6500,HR,6526,1,26,Exclude from standby,R/W,val_u1,YES,YES,YES,Do not allow the Standby mode
+DHW 201,6500,HR,6527,1,27,Boost pump mode,R/W,val_u1,YES,YES,YES,Boost pump mode 0 OFF 1 LOW 2 HIGH
+DHW Tank,6600,DI,6601,1,1,Aggregated warning,R,,YES,YES,YES,A problem is pending in DHW
+DHW Tank,6600,DI,6602,1,2,Aggregated error,R,,YES,YES,YES,A critical problem is pending in DHW
+DHW Tank,6600,DI,6603,1,3,Warning - cleaning process fail,R,,YES,YES,YES,
+DHW Tank,6600,DI,6604,1,4,Error - Tank temp sensor fail,R,,YES,YES,YES,
+DHW Tank,6600,DI,6605,1,5,Error - Circulation return temp sensor fail,R,,YES,YES,YES,
+DHW Tank,6600,DI,6606,1,6,Error - Source return temp sensor fail,R,,YES,YES,YES,
+DHW Tank,6600,DI,6607,1,7,Error - Source inlet temp sensor fail,R,,YES,YES,YES,
+DHW Tank,6600,DI,6608,1,8,Warning - Source inlet temp too low,R,,YES,YES,YES,
+DHW Tank,6600,DI,6609,1,9,Warning - Peripheral low battery,R,,YES,YES,YES,
+DHW Tank,6600,DI,6610,1,10,Error - Peripheral unreachable,R,,YES,YES,YES,
+DHW Tank,6600,IR,6601,1,1,Tank - Measured temp,R,val_d2_fp100,YES,YES,YES,Current temperature of the domestic hot water in the tank
+DHW Tank,6600,IR,6602,1,2,Tank - Desired temp,R,val_d2_fp100,YES,YES,YES,Desired temperature of the domestic hot water inside the tank (according to sheduler or manual setup). NOTE: The tank temperature is different form the temperature flowing from the tip.
+DHW Tank,6600,IR,6603,1,3,Tank - State,R,val_u1,YES,YES,CHANGED,0 OFF 1 IDLE 2 HEATING 3 CLEANING 4 BLOCKED_HEATING 5 BLOCKED_CLEANING 6 FAILURE
+DHW Tank,6600,IR,6604,1,4,Tank - Blocking source,R,val_u1,YES,YES,YES,Please check top of the document - GENERAL BLOCKING SOURCES
+DHW Tank,6600,IR,6605,1,5,Circulation - State,R,val_u1,YES,YES,YES,0 NONE (disabled) 1 IDLE 2 ON
+DHW Tank,6600,IR,6606,1,6,Circulation - Return temp,R,val_d2_fp100,YES,YES,YES,Current temperature of the domestic hot water returning from circulation.
+DHW Tank,6600,IR,6607,1,7,Source - Inlet temp,R,val_d2_fp100,YES,YES,YES,Current temperature of the water incoming from the heat source.
+DHW Tank,6600,IR,6608,1,8,Source - Return temp,R,val_d2_fp100,YES,YES,YES,Current temperature of the water returning to the heat source.
+DHW Tank,6600,HR,6601,16,1,Name,R/W,val_utf8,YES,YES,YES,"String description (32 Bytes, UTF8, NULL terminated)"
+DHW Tank,6600,HR,6617,1,17,Mode,R/W,val_u1,YES,YES,YES,0 SCHEDULE 2 ECO Eco = Circulation is disabled
+DHW Tank,6600,HR,6618,1,18,Circulation - Cooldown time,R/W,val_u2,YES,YES,YES,"How long the circulation is supressed after is paused due to ""Stop temp difference"""
+DHW Tank,6600,HR,6619,1,19,Circulation - Stop temp difference,R/W,val_d2_fp100,YES,YES,YES,"When difference between tank temperature and return temperature from circulation is lower than this value, the circulation pump is switched off."
+DHW Tank,6600,HR,6620,1,20,Source - Return temp limit,R/W,val_d2_fp100,YES,YES,YES,"The controller limits the source return temperature according to this value. (used only in ""advanced tank mode"")"
+DHW Tank,6600,HR,6621,1,21,Tank - Temp set,R/W,val_d2_fp100,YES,YES,YES,Requested temperature of domestic hot water.
+DHW Tank,6600,HR,6622,1,22,Tank - Temp set vacation,R/W,val_d2_fp100,YES,YES,YES,Requested temperature of domestic hot water in Vacation mode
+DHW Tank,6600,HR,6623,1,23,Tank - Temp set cleaning,R/W,val_d2_fp100,YES,YES,YES,Requested temperature of domestic hot water during the cleaning process.
+DHW Tank,6600,HR,6624,1,24,Tank - Temp set standby,R/W,val_d2_fp100,YES,YES,YES,Requested temperature of domestic hot water in Standby mode
+DHW Tank,6600,HR,6625,1,25,Exclude from vacation,R/W,val_u1,YES,YES,YES,Do not allow the Vacation mode
+DHW Tank,6600,HR,6626,1,26,Exclude from standby,R/W,val_u1,YES,YES,YES,Do not allow the Standby mode
+Sentio ITC1,7300,DI,7301,1,1,Aggregated warning,R,,YES,YES,YES,A problem is pending in ITC
+Sentio ITC1,7300,DI,7302,1,2,Aggregated error,R,,YES,YES,YES,A critical problem is pending in ITC
+Sentio ITC1,7300,DI,7303,1,3,Error - Inlet Sensor Failure,R,,YES,YES,YES,Missing or broken sensor
+Sentio ITC1,7300,DI,7304,1,4,Error - Servo Failure,R,,YES,YES,YES,Missing or broken servo
+Sentio ITC1,7300,DI,7305,1,5,Error - Return Sensor Failure,R,,YES,YES,YES,Missing or broken sensor
+Sentio ITC1,7300,DI,7306,1,6,Error - Outdoor Sensor Failure,R,,YES,YES,YES,Missing or broken sensor
+Sentio ITC1,7300,DI,7307,1,7,Error - High temp cut-off activated,R,,YES,YES,YES,"Safety mechanism ""high temp cut-off"" is activated"
+Sentio ITC1,7300,DI,7308,1,8,Error - Frost protection activated,R,,YES,YES,YES,"Safety mechanism ""frost protection"" is activated"
+Sentio ITC1,7300,IR,7301,1,1,State,R,val_u1,YES,YES,YES,1 IDLE 2 HEATING 3 COOLING 4 BLOCKED_HEATING 5 BLOCKED_COOLING
+Sentio ITC1,7300,IR,7302,1,2,Blocking source,R,val_u1,YES,YES,YES,Please check top of the document - GENERAL BLOCKING SOURCES
+Sentio ITC1,7300,IR,7303,1,3,Pump - Demand,R,val_u1,YES,YES,YES,1 IDLE 2 ON
+Sentio ITC1,7300,IR,7304,1,4,Pump - State,R,val_u1,YES,YES,YES,1 IDLE 2 ON
+Sentio ITC1,7300,IR,7305,1,5,Measured inlet temperature,R,val_d2_fp100,YES,YES,YES,Measured temperature of the inlet heating/cooling water.
+Sentio ITC1,7300,IR,7306,1,6,Desired inlet temperature,R,val_d2_fp100,YES,YES,YES,Desired temperature of the inlet heating/cooling water. The value which the ITC regulator wants to meet.
+Sentio ITC1,7300,IR,7307,1,7,Measured return temperature,R,val_d2_fp100,YES,YES,YES,Measured return temperature
+Sentio ITC1,7300,IR,7308,1,8,Main supplier temperature,R,val_d2_fp100,YES,YES,YES,Main supplier temperature
+Sentio ITC1,7300,IR,7309,1,9,Servo position request [%],R,val_d2_fp100,-,YES,YES,Servo position request in percent
+Sentio ITC1,7300,IR,7310,1,10,Desired room temperature by consumers,R,val_d2_fp100,-,-,YES,Desired room temperature by consumers
+Sentio ITC1,7300,HR,7301,16,1,Name,R/W,val_utf8,YES,YES,YES,"String description (32 Bytes, UTF8, NULL terminated)"
+Sentio ITC1,7300,HR,7317,1,17,Regulator - P value,R/W,val_d2_fp10,YES,YES,YES,Proportional gain of temperature regulator
+Sentio ITC1,7300,HR,7318,1,18,Regulator - I value,R/W,val_u2,YES,YES,YES,Integrating time of temperature regulator
+Sentio ITC1,7300,HR,7319,1,19,Regulator - Hysteresis,R/W,val_d2_fp100,YES,YES,YES,Hysteresis
+Sentio ITC1,7300,HR,7320,1,20,Heat curve - type,R/W,val_u1,YES,YES,YES,0 MANUAL 1 CALCULATED 2 UNDERFLOOR 3 RADIATORS
+Sentio ITC1,7300,HR,7321,1,21,Heat curve - manual slope,R/W,val_d2_fp10,YES,YES,YES,Curve slope. Used only in MANUAL
+Sentio ITC1,7300,HR,7322,1,22,Heat curve - parallel displacement,R/W,val_d2_fp100,YES,YES,YES,Shifts calculated temperature up/down
+Sentio ITC1,7300,HR,7323,1,23,Heat curve - min inlet,R/W,val_d2_fp100,YES,YES,YES,Lowest possible temperature
+Sentio ITC1,7300,HR,7324,1,24,Heat curve - max inlet,R/W,val_d2_fp100,YES,YES,YES,Highest possible temperature
+Sentio ITC1,7300,HR,7325,1,25,Heat curve - gain,R/W,val_d2_fp10,YES,YES,YES,Static gain of desired temperature calculation
+Sentio ITC1,7300,HR,7326,1,26,Return temp limiter -function,R/W,val_u1,YES,YES,YES,0 OFF 1 MIN 2 MAX
+Sentio ITC1,7300,HR,7327,1,27,Return temp max limiter - Limit,R/W,val_d2_fp100,YES,YES,YES,Maximum allowed return temperature (limits inlet temperature)
+Sentio ITC1,7300,HR,7328,1,28,Return temp max limiter - Gain,R/W,val_d2_fp10,YES,YES,YES,"Return limiter proportional gain. Use high value fast acting system, low value for slow acting system."
+Sentio ITC1,7300,HR,7329,1,29,Return temp max limiter - Priority over inlet,R/W,val_u1,YES,YES,YES,"0 NO_PRIORITY 1 PRIORITY (return limiter can override ""Heat curve - min inlet"")"
+Sentio ITC1,7300,HR,7330,1,30,Return temp min limiter - Limit,R/W,val_d2_fp100,YES,YES,YES,Minimal allowed return temperature (limits inlet temperature)
+Sentio ITC1,7300,HR,7331,1,31,Return temp min limiter - Gain,R/W,val_d2_fp10,YES,YES,YES,"Return limiter proportional gain. Use high value fast acting system, low value for slow acting system."
+Sentio ITC1,7300,HR,7332,1,32,Optimization - boost,R/W,val_u1,YES,YES,YES,"Boost desired temperature by ""Optimization - boost flow"" for 1 hour 0 DISABLED 1 ENABLED"
+Sentio ITC1,7300,HR,7333,1,33,Optimization - boost flow,R/W,val_u1,YES,YES,YES,Boost flow
+Sentio ITC1,7300,HR,7334,1,34,Optimization - ramping,R/W,val_u1,YES,YES,YES,Rise desired temperature over ramping time. 0 DISABLED 1 ENABLED
+Sentio ITC1,7300,HR,7335,1,35,Optimization - ramping time,R/W,val_u1,YES,YES,YES,Ramping time
+Sentio ITC1,7300,HR,7336,1,36,Frost protection - Mode,R/W,val_u1,YES,YES,YES,"Activate heating in assigned loops whe inlet temperature drops bellow ""Frost protection - Temp"""
+Sentio ITC1,7300,HR,7337,1,37,Frost protection - Temp,R/W,val_d2_fp100,YES,YES,YES,Frost protection limit
+Sentio ITC1,7300,HR,7338,1,38,High Temp Cut-Off - Mode,R/W,val_u1,YES,YES,YES,"Heating is blocked, when inlet temperature exceeds the limit. Alarm is raised, pump is switched off (ignoring all pump delay). 0 DISABLED 1 ENABLED"
+Sentio ITC1,7300,HR,7339,1,39,High Temp Cut-Off - Temp,R/W,val_d2_fp100,YES,YES,YES,Limit temperature for High Temp Cut-Off
+Sentio ITC1,7300,HR,7340,1,40,Cooling Regulator - P value,R/W,val_d2_fp10,YES,YES,YES,Proportional gain of temperature regulator in cooling mode
+Sentio ITC1,7300,HR,7341,1,41,Cooling Regulator - I value,R/W,val_u2,YES,YES,YES,Integrating time of temperature regulator in cooling mode
+Sentio ITC1,7300,HR,7342,1,42,Cooling Regulator - Hysteresis,R/W,val_d2_fp100,YES,YES,YES,Hysteresis in cooling mode
+Sentio ITC1,7300,HR,7343,1,43,Cooling inlet temp min,R/W,val_d2_fp100,YES,YES,YES,Lowest possible temperature in cooling mode
+Sentio ITC1,7300,HR,7344,1,44,Cooling inlet temp max,R/W,val_d2_fp100,YES,YES,YES,Highest possible temperature in cooling mode
+HCC1,7700,DI,7701,1,1,Aggregated warning,R,,YES,YES,YES,A problem is pending in ITC
+HCC1,7700,DI,7702,1,2,Aggregated error,R,,YES,YES,YES,A critical problem is pending in ITC
+HCC1,7700,DI,7703,1,3,Error - inlet sensor failure,R,,YES,YES,YES,
+HCC1,7700,DI,7704,1,4,Error - High temp cut-off activated,R,,YES,YES,YES,"Safety mechanism ""high temp cut-off"" is activated"
+HCC1,7700,IR,7701,1,1,State,R,val_u1,YES,YES,YES,1 IDLE 2 HEATING 3 COOLING 4 BLOCKED_HEATING 5 BLOCKED_COOLING
+HCC1,7700,IR,7702,1,2,Blocking source,R,val_u1,YES,YES,YES,Please check top of the document - GENERAL BLOCKING SOURCES
+HCC1,7700,IR,7703,1,3,Pump - Demand,R,val_u1,YES,YES,YES,1 IDLE 2 ON
+HCC1,7700,IR,7704,1,4,Pump - State,R,val_u1,YES,YES,YES,1 IDLE 2 ON
+HCC1,7700,IR,7705,1,5,Measured inlet temperature,R,val_d2_fp100,YES,YES,YES,Measured temperature of the inlet heating/cooling water.
+HCC1,7700,IR,7706,1,6,Desired inlet temperature,R,val_d2_fp100,YES,YES,YES,Desired temperature of the inlet heating/cooling water. The value which the ITC regulator wants to meet.
+HCC1,7700,IR,7708,1,8,Desired room temperature by consumers,R,val_d2_fp100,-,-,YES,Desired room temperature by consumers
+HCC1,7700,HR,7701,16,1,Name,R/W,val_utf8,YES,YES,YES,"String description (32 Bytes, UTF8, NULL terminated)"
+HCC1,7700,HR,7717,1,17,Heat curve - type,R/W,val_u1,YES,YES,YES,0 MANUAL 1 CALCULATED 2 UNDERFLOOR 3 RADIATORS
+HCC1,7700,HR,7718,1,18,Heat curve - manual slope,R/W,val_d2_fp10,YES,YES,YES,Curve slope. Used only in MANUAL
+HCC1,7700,HR,7719,1,19,Heat curve - parallel displacement,R/W,val_d2_fp100,YES,YES,YES,Shifts calculated temperature up/down
+HCC1,7700,HR,7720,1,20,Heat curve - min inlet,R/W,val_d2_fp100,YES,YES,YES,Lowest possible temperature
+HCC1,7700,HR,7721,1,21,Heat curve - max inlet,R/W,val_d2_fp100,YES,YES,YES,Highest possible temperature
+HCC1,7700,HR,7722,1,22,Heat curve - gain,R/W,val_d2_fp10,YES,YES,YES,Static gain of desired temperature calculation
+HCC1,7700,HR,7723,1,23,High Temp Cut-Off - Mode,R/W,val_u1,YES,YES,YES,"Heating is blocked, when inlet temperature exceeds the limit. Alarm is raised, pump is switched off (ignoring all pump delay). 0 DISABLED 1 ENABLED"
+HCC1,7700,HR,7724,1,24,High Temp Cut-Off - Temp,R/W,val_d2_fp100,YES,YES,YES,Limit temperature for High Temp Cut-Off
+H/C Source,8100,DI,8101,1,1,Aggregated warning,R,,YES,YES,YES,A problem is pending in H/C Source
+H/C Source,8100,DI,8102,1,2,Aggregated error,R,,YES,YES,YES,A critical problem is pending in H/C Source
+H/C Source,8100,DI,8103,1,3,Error general failure,R,,YES,YES,YES,General failure
+H/C Source,8100,IR,8101,1,1,State,R,val_u1,YES,YES,YES,1 IDLE 2 HEATING 3 COOLING 4 BLOCKED_HEATING 5 BLOCKED_COOLING
+Boiler/Heat Pump,8200,DI,8201,1,1,Aggregated warning,R,,-,-,YES,A problem is pending in Boiler/Heat Pump
+Boiler/Heat Pump,8200,DI,8202,1,2,Aggregated error,R,,-,-,YES,A critical problem is pending in Boiler/Heat Pump
+Boiler/Heat Pump,8200,DI,8203,1,3,Error - inlet temp sensor failure,R,,-,-,YES,Inlet temperature sensors failure
+Boiler/Heat Pump,8200,DI,8204,1,4,Error - general failure,R,,-,-,YES,General failure
+Boiler/Heat Pump,8200,IR,8201,1,1,State,R,val_u1,-,-,YES,1 IDLE 2 HEATING_PREPARE 3 HEATING_ACTIVE 4 HEATING_TERMINATE 5 COOLING_PREPARE 6 COOLING_ACTIVE 7 COOLING_TERMINATE 8 BLOCKED_HEATING 9 BLOCKED_COOLING 10 FAILURE
+Boiler/Heat Pump,8200,IR,8202,1,2,Blocking source,R,val_u1,-,-,YES,Please check top of the document - GENERAL BLOCKING SOURCES
+Boiler/Heat Pump,8200,IR,8203,1,3,Inlet temperature,R,val_d2_fp100,-,-,YES,Measured temperature of the inlet heating/cooling water.
+Boiler/Heat Pump,8200,IR,8204,1,4,Requested temperature,R,val_d2_fp100,-,-,YES,Requested temperature for heat pump
+Boiler/Heat Pump,8200,HR,8201,16,1,Name,R/W,val_utf8,-,-,YES,"String description (32 Bytes, UTF8, NULL terminated)"
+Boiler/Heat Pump,8200,HR,8217,1,17,Minimum runtime [min],R/W,val_u2,-,-,YES,Minimum runtime in minutes
+Boiler/Heat Pump,8200,HR,8218,1,18,Minimum cycle delay [min],R/W,val_u2,-,-,YES,Minimum cycle delay in minutes
+Boiler/Heat Pump,8200,HR,8219,1,19,Demand start delay [min],R/W,val_u2,-,-,YES,Demand start delay in minutes
+Boiler/Heat Pump,8200,HR,8220,1,20,Demand stop delay [min],R/W,val_u2,-,-,YES,Demand stop delay in minutes
+Buffer Tank,8300,DI,8301,1,1,Aggregated warning,R,,-,-,YES,A problem is pending in Buffer Tank
+Buffer Tank,8300,DI,8302,1,2,Aggregated error,R,,-,-,YES,A critical problem is pending in Buffer Tank
+Buffer Tank,8300,DI,8303,1,3,Error - inlet temp sensor failure,R,,-,-,YES,Inlet temperature sensors failure
+Buffer Tank,8300,DI,8304,1,4,Error - priority temp sensor failure,R,,-,-,YES,Prority temperature sensor failure
+Buffer Tank,8300,DI,8305,1,5,Error - upper temp sensor failure,R,,-,-,YES,Upper temperature sensor failure
+Buffer Tank,8300,DI,8306,1,6,Error - lower temp sensor failure,R,,-,-,YES,Lower temperature sensor failure
+Buffer Tank,8300,IR,8301,1,1,State,R,val_u1,-,-,YES,1 IDLE 2 HEATING_PREPARE 3 HEATING_ACTIVE 4 HEATING_TERMINATE 5 COOLING_PREPARE 6 COOLING_ACTIVE 7 COOLING_TERMINATE 8 BLOCKED_HEATING 9 BLOCKED_COOLING 10 FAILURE
+Buffer Tank,8300,IR,8302,1,2,Blocking source,R,val_u1,-,-,YES,Please check top of the document - GENERAL BLOCKING SOURCES
+Buffer Tank,8300,IR,8303,1,3,Source inlet temperature,R,val_d2_fp100,-,-,YES,Measured temperature of the source inlet heating/cooling water.
+Buffer Tank,8300,IR,8304,1,4,Buffer upper temperature,R,val_d2_fp100,-,-,YES,Buffer tank upper temperature
+Buffer Tank,8300,IR,8305,1,5,Buffer lower temperature,R,val_d2_fp100,-,-,YES,Buffer tank lower temperature
+Buffer Tank,8300,HR,8301,16,1,Name,R/W,val_utf8,-,-,YES,"String description (32 Bytes, UTF8, NULL terminated)"
+Buffer Tank,8300,HR,8317,1,17,Start difference [K],R/W,val_d2_fp100,-,-,YES,Start charging difference in kelvins
+Buffer Tank,8300,HR,8318,1,18,Stop difference [K],R/W,val_d2_fp100,-,-,YES,Stop charging difference in kelvins
+Buffer Tank,8300,HR,8319,1,19,Sensor priority,R/W,val_u1,-,-,YES,0 - UPPER_SENSOR 1 - LOWER_SENSOR
+Buffer Tank,8300,HR,8320,1,20,Flow balancing,R/W,val_u1,-,-,YES,0 - DISABLE 1 - ENABLE
+Buffer Tank,8300,HR,8321,1,21,Charge mode,R/W,val_u1,-,-,YES,0 - CONSUMER_ONLY 1 - DEMAND_TRIGGERED
+Buffer Tank,8300,HR,8322,1,22,Charge evaluation delay [min],R/W,val_u1,-,-,YES,Charge evaluation delay in minutes
+Thermistor Inputs,12800,IR,12801,1,1,T1 - Thermistor input temp,R,val_d2_fp100,-,-,YES,T1 temperature
+Thermistor Inputs,12800,IR,12802,1,2,T2 - Thermistor input temp,R,val_d2_fp100,-,-,YES,T2 temperature
+Thermistor Inputs,12800,IR,12803,1,3,T3 - Thermistor input temp,R,val_d2_fp100,-,-,YES,T3 temperature
+Thermistor Inputs,12800,IR,12804,1,4,T4 - Thermistor input temp,R,val_d2_fp100,-,-,YES,T4 temperature
+Thermistor Inputs,12800,IR,12805,1,5,T5 - Thermistor input temp,R,val_d2_fp100,-,-,YES,T5 temperature
+Peripheral 1,51200,DI,51201,1,1,Aggregated warning,R,,YES,YES,YES,A problem is pending in Room
+Peripheral 1,51200,DI,51202,1,2,Aggregated error,R,,YES,YES,YES,A critical problem is pending in Room
+Peripheral 1,51200,DI,51203,1,3,Warning - low battery,R,,YES,YES,YES,Battery is low in the peripheral.
+Peripheral 1,51200,DI,51204,1,4,Error - peripheral lost,R,,YES,YES,YES,Peripheral is not responding.
+Peripheral 1,51200,IR,51201,1,1,Type,R,val_u2,YES,YES,YES,"Peripheral type - Sensor, Termostat, see table at the top"
+Peripheral 1,51200,IR,51202,2,2,SN,R,val_u4,YES,YES,YES,Serial number
+Peripheral 1,51200,IR,51204,1,4,Owner,R,val_u2,YES,YES,YES,000 - Location 001 - Room 1 … 016 - Room 16 NOTE: Object address in this modbus table is used as owner_id
+Peripheral 1,51200,IR,51205,1,5,Signal strength,R,val_u1,YES,YES,YES,"Peripheral Signal strength 0 - 6, 0 - worst signal … 6 - best signal"
+Peripheral 1,51200,HR,51201,16,1,Peripheral name,R/W,val_utf8,YES,YES,YES,"String description (32 Bytes, UTF8, NULL terminated)"
+Ventilation 1,61000,DI,61001,1,1,Aggregated warning,R,,-,YES,YES,A problem is pending in device
+Ventilation 1,61000,DI,61002,1,2,Aggregated error,R,,-,YES,YES,A critical problem is pending in device
+Ventilation 1,61000,DI,61003,1,3,Warning - air filter lifetime expired,R,,-,YES,YES,Air filter lifetime expired
+Ventilation 1,61000,DI,61004,1,4,Warning - air filter solar year passed,R,,-,YES,YES,Air filter solar year passed from last air filter change
+Ventilation 1,61000,DI,61005,1,5,Warning - device specific,R,,-,YES,YES,Read code from input register - Warning-device specific
+Ventilation 1,61000,DI,61006,1,6,Error - device fault,R,,-,YES,YES,General problem
+Ventilation 1,61000,DI,61007,1,7,Error - communication error,R,,-,YES,YES,Communication error
+Ventilation 1,61000,DI,61008,1,8,Error - not compatible,R,,-,YES,YES,Not compatible
+Ventilation 1,61000,DI,61009,1,9,Error - device specific,R,,-,YES,YES,Read code from input register - Error-device specific
+Ventilation 1,61000,IR,61001,16,1,Device model,R,val_utf8,-,YES,YES,Device model
+Ventilation 1,61000,IR,61017,2,17,Warning - device specific code,R,val_u4,-,YES,YES,Device specific warning code
+Ventilation 1,61000,IR,61019,2,19,Error - device specific code,R,val_u4,-,YES,YES,Device specific error code
+Ventilation 1,61000,IR,61021,2,21,Device feature bits,R,val_u4,-,YES,YES,Specific features (capabilities) device has 0x0001 - ALLOW_UNOCCUPIED 0x0002 - ALLOW_ECO 0x0004 - ALLOW_COMFORT 0x0008 - ALLOW_STOPPED 0x0010 - ALLOW_BOOST 0x0020 - ALLOW_BYPASS 0x0040 - FAN_PWM_CONTROL 0x0080 - FAN_BINARY_CONTROL 0x0100 - TEMP_INTAKE 0x0200 - TEMP_SUPPLY 0x0400 - TEMP_EXTRACT 0x0800 - TEMP_EXHAUST 0x1000 - HUMIDITY_INTAKE 0x2000 - HUMIDITY_EXTRACT 0x4000 - FAN_SPEED_FEEDBACK
+Ventilation 1,61000,IR,61023,1,23,Ventilation state,R,val_u1,-,YES,YES,0 - STOPPED 1 - UNOCCUPIED 2 - ECONOMY 3 - COMFORT 4 - BOOST 5 - BLOCKED_STOPPED 6 - BLOCKED_UNOCCUPIED 7 - BLOCKED_ECONOMY 8 - BLOCKED_COMFORT 9 - BLOCKED_BOOST 10 - FAILURE 11 - MAINTENANCE
+Ventilation 1,61000,IR,61024,1,24,Ventilation blocking,R,val_u1,-,YES,YES,Please check top of the document - GENERAL BLOCKING SOURCES
+Ventilation 1,61000,IR,61025,1,25,Supply fan speed actual [rpm],R,val_u2,-,YES,YES,Supply fan speed actual [rpm]
+Ventilation 1,61000,IR,61026,1,26,Exhaust fan speed actual [rpm],R,val_u2,-,YES,YES,Exhaust fan speed actual [rpm]
+Ventilation 1,61000,IR,61027,1,27,Supply fan speed setpoint [%],R,val_d2_fp100,-,YES,YES,Supply fan speed setpoint [%]
+Ventilation 1,61000,IR,61028,1,28,Exhaust fan speed setpoint [%],R,val_d2_fp100,-,YES,YES,Exhaust fan speed setpoint [%]
+Ventilation 1,61000,IR,61029,1,29,Supply volume flow setpoint [m^3/h],R,val_u2,-,YES,YES,Supply volume flow setpoint [m^3/h]
+Ventilation 1,61000,IR,61030,1,30,Exhaust volume flow setpoint [m^3/h],R,val_u2,-,YES,YES,Exhaust volume flow setpoint [m^3/h]
+Ventilation 1,61000,IR,61031,1,31,Intake air temperature,R,val_d2_fp100,-,YES,YES,Intake air temperature
+Ventilation 1,61000,IR,61032,1,32,Supply air temperature,R,val_d2_fp100,-,YES,YES,Supply air temperature
+Ventilation 1,61000,IR,61033,1,33,Extract air temperature,R,val_d2_fp100,-,YES,YES,Extract air temperature
+Ventilation 1,61000,IR,61034,1,34,Exhaust air temperature,R,val_d2_fp100,-,YES,YES,Exhaust air temperature
+Ventilation 1,61000,IR,61035,1,35,Heat recovery bypass damper position [%],R,val_d2_fp100,-,YES,YES,Heat recovery bypass damper position [%]
+Ventilation 1,61000,IR,61036,1,36,Free cooling enabled,R,val_u1,-,YES,YES,Free cooling enabled
+Ventilation 1,61000,IR,61037,2,37,Air filter last change,R,val_u4,-,YES,YES,"Timestamp, updates when register ""Air filter lifetime used"" is set to zero"
+Ventilation 1,61000,HR,61001,16,1,Device name,R/W,val_utf8,-,YES,YES,"String description (32 Bytes, UTF8, NULL terminated)"
+Ventilation 1,61000,HR,61017,2,17,Air filter lifetime,R/W,val_u4,-,YES,YES,Air filter lifetime (minutes) - maximum value is dependent on device model
+Ventilation 1,61000,HR,61019,2,19,Air filter lifetime used,R/W,val_u4,-,YES,YES,Write 0 to reset timer
+Ventilation 1,61000,HR,61021,1,21,Exhaust Fan Level Unoccupied [%],R/W,val_d2_fp100,-,YES,YES,Exhaust Fan Level Unoccupied [%]
+Ventilation 1,61000,HR,61022,1,22,Exhaust Fan Level Eco [%],R/W,val_d2_fp100,-,YES,YES,Exhaust Fan Level Eco [%]
+Ventilation 1,61000,HR,61023,1,23,Exhaust Fan Level Comfort [%],R/W,val_d2_fp100,-,YES,YES,Exhaust Fan Level Comfort [%]
+Ventilation 1,61000,HR,61024,1,24,Exhaust Fan Level Boost [%],R/W,val_d2_fp100,-,YES,YES,Exhaust Fan Level Boost [%]
+Ventilation 1,61000,HR,61025,1,25,Supply Fan Level Unoccupied [%],R/W,val_d2_fp100,-,YES,YES,Supply Fan Level Unoccupied [%]
+Ventilation 1,61000,HR,61026,1,26,Supply Fan Level Eco [%],R/W,val_d2_fp100,-,YES,YES,Supply Fan Level Eco [%]
+Ventilation 1,61000,HR,61027,1,27,Supply Fan Level Comfort [%],R/W,val_d2_fp100,-,YES,YES,Supply Fan Level Comfort [%]
+Ventilation 1,61000,HR,61028,1,28,Supply Fan Level Boost [%],R/W,val_d2_fp100,-,YES,YES,Supply Fan Level Boost [%]
+Ventilation 1,61000,HR,61029,1,29,Exhaust Fan Level Unoccupied [m^3/h],R/W,val_u2,-,YES,YES,Exhaust Fan Level Unoccupied [m^3/h]
+Ventilation 1,61000,HR,61030,1,30,Exhaust Fan Level Eco [m^3/h],R/W,val_u2,-,YES,YES,Exhaust Fan Level Eco [m^3/h]
+Ventilation 1,61000,HR,61031,1,31,Exhaust Fan Level Comfort [m^3/h],R/W,val_u2,-,YES,YES,Exhaust Fan Level Comfort [m^3/h]
+Ventilation 1,61000,HR,61032,1,32,Exhaust Fan Level Boost [m^3/h],R/W,val_u2,-,YES,YES,Exhaust Fan Level Boost [m^3/h]
+Ventilation 1,61000,HR,61033,1,33,Exhaust Fan Level Boost [m^3/h],R/W,val_u2,-,YES,YES,Supply Fan Level Unoccupied [m^3/h]
+Ventilation 1,61000,HR,61034,1,34,Supply Fan Level Eco [m^3/h],R/W,val_u2,-,YES,YES,Supply Fan Level Eco [m^3/h]
+Ventilation 1,61000,HR,61035,1,35,Supply Fan Level Comfort [m^3/h],R/W,val_u2,-,YES,YES,Supply Fan Level Comfort [m^3/h]
+Ventilation 1,61000,HR,61036,1,36,Supply Fan Level Boost [m^3/h],R/W,val_u2,-,YES,YES,Supply Fan Level Boost [m^3/h]
+Ventilation 1,61000,HR,61037,1,37,Allow Stopped level,R/W,val_u1,-,YES,YES,Allow Stopped level 0 - NOT ALLOWED 1 - ALLOWED
+Ventilation 1,61000,HR,61038,1,38,Allow Unoccupied level,R/W,val_u1,-,YES,YES,Allow Unoccupied level 0 - NOT ALLOWED 1 - ALLOWED
+Ventilation 1,61000,HR,61039,1,39,Standby mode level,R/W,val_u1,-,YES,YES,0 - STOPPED 1 - UNOCCUPIED 2 - ECONOMY
+Ventilation 1,61000,HR,61040,1,40,Vacation mode level,R/W,val_u1,-,YES,YES,0 - STOPPED 1 - UNOCCUPIED 2 - ECONOMY
+Ventilation 1,61000,HR,61041,1,41,Heat exchange mode (recovery bypass),R/W,val_u1,-,YES,YES,0 - ALWAYS ON 1 - AUTOMATIC
+Dehumidifier 1,65000,DI,65001,1,1,Aggregated warning,R,,YES,YES,YES,A problem is pending in device
+Dehumidifier 1,65000,DI,65002,1,2,Aggregated error,R,,YES,YES,YES,A critical problem is pending in device
+Dehumidifier 1,65000,DI,65003,1,3,Warning - air filter lifetime expired,R,,YES,YES,YES,Air filter lifetime expired
+Dehumidifier 1,65000,DI,65004,1,4,Warning - air filter solar year passed,R,,YES,YES,YES,Air filter solar year passed from last air filter change
+Dehumidifier 1,65000,DI,65005,1,5,Error - HCW supplier,R,,YES,YES,YES,Heating/Cooling water supplier is not set
+Dehumidifier 1,65000,DI,65006,1,6,Error - device fault,R,,YES,YES,YES,Device fault - general signal from device
+Dehumidifier 1,65000,IR,65001,1,1,Type,R,val_u1,YES,YES,YES,Device type 0 GENERIC 1 P300_S300 2 PC300_SC300
+Dehumidifier 1,65000,IR,65003,1,3,Drying status,R,val_u1,YES,YES,YES,0 NONE (function not available) 1 IDLE 2 DRYING 3 BLOCKED_DRYING
+Dehumidifier 1,65000,IR,65004,1,4,Drying blocking,R,val_u1,YES,YES,YES,Please check top of the document - GENERAL BLOCKING SOURCES
+Dehumidifier 1,65000,IR,65005,1,5,Thermal integration status,R,val_u1,YES,YES,YES,0 NONE (function not available) 1 IDLE 2 HEATING 3 COOLING 4 BLOCKED_HEATING 5 BLOCKED_COOLING
+Dehumidifier 1,65000,IR,65006,1,6,Thermal integration blocking,R,val_u1,YES,YES,YES,Please check top of the document - GENERAL BLOCKING SOURCES
+Dehumidifier 1,65000,IR,65007,1,7,Thermal Integ. demand condition,R,val_u1,YES,YES,YES,100 - IN ANY ROOM 101 - IN ALL ROOMS 1-32 - PARTICULAR ROOM (Address of modbus object)
+Dehumidifier 1,65000,IR,65010,2,10,Air filter last change,R,val_u4,YES,YES,YES,"Timestamp, updates when register ""Air filter lifetime used"" is set to zero"
+Dehumidifier 1,65000,IR,65012,1,12,Associated HCW supplier,R,val_u1,YES,YES,YES,0 .. NONE 73 .. ITC1 (Address of modbus object) 74 .. ITC2 (Address of modbus object) 77 .. HCC1 (Address of modbus object) 78 .. HCC2 (Address of modbus object) 79 .. HCC3 (Address of modbus object) 81 .. H/C Source (Address of modbus object)
+Dehumidifier 1,65000,HR,65001,16,1,Device name,R/W,val_utf8,YES,YES,YES,"String description (32 Bytes, UTF8, NULL terminated)"
+Dehumidifier 1,65000,HR,65017,2,17,Air filter lifetime,R/W,val_u4,YES,YES,YES,Air filter lifetime (minutes)
+Dehumidifier 1,65000,HR,65019,2,19,Air filter lifetime used,R/W,val_u4,YES,YES,YES,Write 0 to reset timer
+Dehumidifier 1,65000,HR,65021,1,21,Drying allow in mode,R/W,val_u1,YES,YES,YES,0 - IN COOLING MODE 1 - IN HEATING MODE 2 - IN BOTH
+Dehumidifier 1,65000,HR,65022,1,22,Drying cooling water,R/W,val_d2_fp100,YES,YES,YES,Desired cooling water temperature
+Dehumidifier 1,65000,HR,65023,1,23,Thermal integ. allow in mode,R/W,val_u1,YES,YES,YES,0 - IN COOLING MODE 1 - IN HEATING MODE 2 - IN BOTH
+Dehumidifier 1,65000,HR,65024,1,24,Thermal integ. heating water temp,R/W,val_d2_fp100,YES,YES,YES,Desired heating water temperature
+Dehumidifier 1,65000,HR,65025,1,25,Thermal integ. cooling water temp,R/W,val_d2_fp100,YES,YES,YES,Desired cooling water temperature
