@@ -1,10 +1,13 @@
 # Wavin Sentio Connect
 
-An event-driven Python client for the **Wavin Sentio** floor heating controller over Modbus TCP.
+An event-driven Python client for the **Wavin Sentio** floor heating controller over Modbus TCP,
+built on [modbus_event_connect](https://github.com/HairingX/modbus_event_connect).
 
-The register map is complete: all 16 rooms, 64 peripheral slots and the location object are
-modelled from the official Sentio Modbus manual. You subscribe to the values you care about and
-get a callback when one actually changes.
+The register map is complete for the location, all 16 rooms and all 64 peripheral slots,
+modelled from the official Sentio Modbus manual. Connecting finds out which rooms and
+peripherals your installation actually has; you subscribe to the values you care about and are
+told when one changes - with its quality, so "offline", "no reading" and a real value never look
+alike.
 
 ## Installation
 
@@ -25,156 +28,112 @@ The controller restarts afterwards. It uses DHCP; its hostname is
 
 ```python
 import asyncio
-from wavin_sentio_connect import WavinSentioTCPConnect, WavinSentioDatapointKey
+from wavin_sentio_connect import create_client, rooms
 
-def on_change(key, old_value, new_value):
-    print(f"{key}: {old_value} -> {new_value}")
+def on_change(key, old, new):
+    print(f"{key}: {new.value} ({new.quality.name})")
 
 async def main():
-    client = WavinSentioTCPConnect()
-    await client.connect("my-sentio", "<device-ip>")
+    client = create_client("<device-ip>")
+    await client.connect()              # finds the installed rooms and peripherals
 
-    # connect() discovers what this controller actually has, so subscribe to that
-    # rather than to the whole register map.
-    print(client.discovery)        # e.g. "13 rooms [1, 2, 4, 5, ...], 15 peripherals"
+    for room in rooms(client):
+        print(room.number, room.name, "dummy" if room.is_dummy else "")
+        client.subscribe(f"room_{room.number}_temp_air_current", on_change)
 
-    for room in client.discovery.rooms:
-        for suffix in ("TEMP_AIR_CURRENT", "TEMP_FLOOR_CURRENT", "HUMIDITY_CURRENT"):
-            client.subscribe(WavinSentioDatapointKey[f"ROOM_{room}_{suffix}"], on_change)
-
-    # You decide when to poll. Callbacks fire only for values that changed.
-    while True:
-        await client.request_datapoint_read()
-        await client.request_setpoint_read()
-        await asyncio.sleep(30)
+    while True:                         # you own the clock; the library owns the plan
+        await client.poll()      # reads only what is due - free when nothing is
+        await asyncio.sleep(1)
 
 asyncio.run(main())
 ```
 
-Connect first, then subscribe. Until `connect()` has run, the client cannot know which of the
-16 rooms and 64 peripheral slots this installation uses — asking for a room that was never set
-up is how you end up with entities that never hold a value. `provides()` returns `False` for
-those, and `subscribe()` refuses them.
+When `connect()` returns, `client.keys` holds exactly what this installation has - a room that
+was never set up is not there, so no entity is built for it. `rooms(client)` and
+`peripherals(client)` describe the installation from values already read, with no extra
+requests.
 
-Writing a setpoint:
+Every value is a `DataValue`: `value`, `quality` and `timestamp` (UTC).
 
-```python
-await client.request_setpoint_write(WavinSentioSetpointKey.ROOM_1_TEMP_AIR_TARGET, 21.5)
-# The device may clamp or step-align the value, so read it back rather than assuming:
-await client.request_setpoint_read()
-```
-
-## Writing, and knowing what the controller is doing
-
-The controller answers `SLAVE_DEVICE_BUSY` (`0x06`) while it persists a change — after any
-write, and after anyone touches the display.
-
-Writes do **not** wait for the controller to settle:
-
-```python
-await client.request_setpoint_write(key, 21.5)   # returns as soon as it is accepted
-await coordinator.async_request_refresh()        # your cadence, coalesced by the host
-```
-
-This is the pattern Home Assistant's own Modbus integration uses — write, show the new value
-optimistically, refresh on your own schedule. Blocking until the controller is ready would
-stall every other request for the whole busy period and buys nothing, since the value has to be
-read back anyway (the device may clamp or step-align it).
-
-Pass `wait_for_ready=True`, or call `await client.await_device_ready()`, only when the next
-step genuinely cannot start until the controller has settled — a scripted sequence of dependent
-writes, for example.
-
-What the client *does* do on your behalf is retry a request the controller rejects with `0x06`.
-That is not general Modbus practice; it is required by the Sentio manual, which states the
-request "shall be repeated again".
-
-### Showing that work is in progress
-
-`WRITE_PENDING` is true from the moment a write starts until it has settled. Use it to show
-that something is happening — a spinner, a pending badge — rather than to disable a control.
-Disabling a +/- stepper per tap makes it feel broken; debounce the taps and send one write
-instead.
-
-```python
-from modbus_event_connect import ModbusStatusKey
-
-client.subscribe(ModbusStatusKey.WRITE_PENDING, on_change)
-client.subscribe(ModbusStatusKey.DEVICE_BUSY, on_change)
-client.subscribe(ModbusStatusKey.CONNECTED, on_change)
-
-if client.accepts_writes:
-    await client.request_setpoint_write(key, 21.5)
-```
-
-| Key | Meaning |
+| Quality | Meaning |
 |---|---|
-| `WRITE_PENDING` | `1` from the moment a write starts until the controller has settled |
-| `DEVICE_BUSY` | `1` while the controller is answering `0x06` |
-| `CONNECTED` | `1` once the transport is open and a model is loaded |
-| `LAST_EXCEPTION_CODE` | Modbus exception from the most recent request, `0` if it succeeded |
+| `GOOD` | the controller answered with a valid value |
+| `NO_DATA` | it answered "no reading" - a missing sensor, an unconfigured limit, a wired peripheral's signal strength |
+| `OFFLINE` | the register exists but what is behind it is not answering |
+| `STALE` | the last read failed; the value is the last good one |
 
-`WRITE_PENDING` and `DEVICE_BUSY` are not the same thing. `DEVICE_BUSY` only becomes true if
-the controller actually reports `0x06`; a controller that answers instantly would show nothing.
-`WRITE_PENDING` is true for every write regardless, and is reference-counted, so overlapping
-writes only clear it once the last one finishes.
+## How often values are read
 
-`DEVICE_BUSY` going true **without** `WRITE_PENDING` means someone else changed something — on
-the display or in the app. That is a useful cue to refresh early rather than wait for the next
-interval. It is a hint, not a guarantee: the manual says the controller *may* go busy on an
-external change.
+Every point has a poll rate, and the library reads it when it is due:
 
-Status keys behave like any other key — `subscribe()`, `get_value()`, change-filtered events —
-except that they are pushed by the client rather than read from a register, so they work before
-`connect()` and need no device model.
+| Poll rate | Default | Sentio uses it for |
+|---|---|---|
+| `FAST` | 10 s | room states and blocking sources |
+| `MEDIUM` | 30 s | temperatures, humidity, dew point |
+| `SLOW` | 60 s | settings |
+| `RARE` | 15 min | peripheral signal strength |
+| `STATIC` | at connect | versions, serial numbers, names, room types |
 
-## Polling is the caller's job
-
-This library owns **no timer and no background thread**. It turns register reads into
-value-change events; deciding *when* to read is left to whatever scheduler the host already
-runs. In Home Assistant that is a `DataUpdateCoordinator`; in a script it is your own loop.
-
-This is deliberate. A library that schedules its own polling fights the host's event loop,
-duplicates its backoff and retry policy, and takes the polling interval out of the user's hands.
-
-Reading **everything** is cheap enough that you should not split values into static and dynamic
-groups: measured against a real CCU-208 with 13 rooms and 15 peripherals, a full cycle of all
-643 available points is **~310 ms across 101 requests**, or about 1% duty cycle at a 30-second
-interval. Treating version and serial registers as read-once would save nothing and would leave
-them stale after a firmware update.
-
-## Async, and bring your own connection
-
-The client is natively asynchronous end to end: no thread hops, nothing that blocks the caller's
-event loop. That follows Home Assistant's [`async-dependency`](https://developers.home-assistant.io/docs/core/integration-quality-scale/rules/async-dependency/)
-quality-scale rule, which asks libraries to use asyncio rather than pay a context switch per
-request.
-
-You can also hand it a connection instead of letting it open one, per the
-[`inject-websession`](https://developers.home-assistant.io/docs/core/integration-quality-scale/rules/inject-websession/)
-rule - useful when the host already talks to the same controller and a second socket would be
-waste:
+Override any of them, or a single key:
 
 ```python
-from modbus_event_connect import PymodbusTransport
-
-transport = PymodbusTransport(host="<device-ip>", port=502, unit_id=1)
-client = WavinSentioTCPConnect(transport=transport)
+from modbus_event_connect import PollRate
+client.set_poll_interval(PollRate.FAST, 5)
+client.set_poll_interval("room_4_temp_air_current", 2)
+await client.refresh(PollRate.STATIC)        # re-read the static values now
 ```
 
-`PymodbusTransport` is the only transport shipped. Writing another is small - implement the
-`ModbusTransport` protocol; the event layer does not care what is underneath.
+Only what something wants is read: a subscriber, or `client.set_polling(key)`. Measured against a
+real CCU-208 with 13 rooms and 15 peripherals, connecting - scanning every room and slot and
+reading all 643 values once - takes under a second.
 
-Calling from a plain synchronous script needs no async code of your own:
+## Writing
 
 ```python
-asyncio.run(client.request_datapoint_read())
+await client.write("room_1_temp_air_target", 21.5)
+await client.write("room_1_lock", "hotel")        # locked / hotel / unlocked
 ```
 
-## Addressing
+- A value is checked before anything is sent: its type, its range, and the controller's
+  "no reading" sentinel, which could never be read back.
+- Writes are sent in order. Tapping + five times sends the first value and the last, not all
+  five.
+- The written point is read back a moment later, since the controller may clamp a value.
+- The controller answers `SERVER_DEVICE_BUSY` (`0x06`) while it stores a change; the manual says
+  such a request "shall be repeated again", and the library does, with backoff.
+- `client.write_pending` - and the subscribable `Status.WRITE_PENDING` - is true from the moment
+  a write is asked for until the last one has finished.
 
-The Sentio manual's "Modbus Address" column holds raw wire addresses, so its numbers are used
-unchanged. Object base addresses:
+For monitoring only, create the client read-only; every write is then refused before it reaches
+the controller:
+
+```python
+client = create_client("<device-ip>", read_only=True)
+```
+
+## Sharing a connection
+
+To put the controller on a connection the host already owns - a gateway shared with other
+devices - use `create_client_on`:
+
+```python
+from modbus_event_connect.modbus import ModbusTcpConnection
+from wavin_sentio_connect import create_client_on
+
+connection = ModbusTcpConnection("<device-ip>")
+client = create_client_on(connection, unit_id=1)
+```
+
+The client is asynchronous end to end - no threads, nothing that blocks the event loop - and
+owns no timer. In Home Assistant, call `poll()` from the integration's own tick.
+
+## Keys and addressing
+
+Keys are plain strings: `room_{n}_...` for rooms 1-16 and `peripheral_{n}_...` for slots 1-64.
+The model is in [`model.py`](src/wavin_sentio_connect/model.py); every key is declared there
+with its address and encoding.
+
+The manual's "Modbus Address" column holds the addresses themselves, so its numbers are used unchanged:
 
 | Object | Base | Instances |
 |---|---|---|
@@ -182,26 +141,26 @@ unchanged. Object base addresses:
 | Room *N* | `N * 100` | 1–16 |
 | Peripheral *N* | `51100 + N * 100` | 1–64 |
 
-Helpers `room_base(n)` and `peripheral_base(n)` are exported.
-
 Peripheral slots are **not stable identities** - the controller reorders them when peripherals
-are learned or unlearned. Use `PERIPHERAL_n_SN` to identify one, and `PERIPHERAL_n_OWNER`
-(`0` = location, `1`–`16` = room) to find which room it belongs to.
+are learned or unlearned. Use `peripheral_{n}_serial_number` to recognise a device, and
+`peripheral_{n}_owner` (`0` = location, `1`–`16` = room) to find the room it belongs to.
+
+Two room values are easy to confuse: `room_{n}_temp_air_target` is the user's setting, and
+`room_{n}_temp_air_target_active` is the target the controller is regulating to right now -
+different under standby, vacation or a schedule.
 
 ## Documentation
 
-- [`docs/sentio-modbus-reference.md`](docs/sentio-modbus-reference.md) — the protocol: register
+- [`docs/sentio-modbus-reference.md`](docs/sentio-modbus-reference.md) - the protocol: register
   tables, data types, error handling, enumerations.
-- [`docs/sentio-registers.csv`](docs/sentio-registers.csv) — all 344 documented registers, one
+- [`docs/sentio-registers.csv`](docs/sentio-registers.csv) - all 344 documented registers, one
   row each.
-- [`docs/temp/implementation-status.md`](docs/temp/implementation-status.md) — what is
-  implemented and what is not.
 
 ## Known gaps
 
-- **Discrete inputs are not supported yet.** That is every alarm and warning in the system
-  (77 registers): per-room aggregated warning/error, low battery, peripheral lost, and all
-  DHW/ITC/HCC sensor failures. They need Modbus function code `0x02`.
+- **Alarms are not modelled yet.** They are discrete inputs (77 registers: per-room warnings,
+  low battery, peripheral lost, sensor failures). The library reads discrete inputs, and the
+  controller has been verified to answer them; they still need adding to the model.
 - Only the location, room and peripheral objects are modelled. Outdoor, DHW, ITC, HCC, buffer
   tank, ventilation and dehumidifier objects are documented in the CSV but not yet wired.
 

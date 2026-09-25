@@ -43,14 +43,14 @@ DHCP hostname: `Wavin Sentio CCU#[last four S/N digits]`.
 Each table is numbered **independently**: discrete input `00101`, input register `00101` and
 holding register `00101` are three unrelated values.
 
-### Address numbering — resolved: the manual's number IS the wire address
+### Address numbering — resolved: the manual's number IS the address
 
 **Send the manual's number unchanged.** The manual's *"Modbus Address"* column holds raw
-protocol (PDU) starting addresses, so manual `00104` is wire address `104`, with no `-1`
-adjustment. Manual `00001` is wire address `1`, and wire address `0` is unused.
+protocol (PDU) starting addresses, so manual `00104` is address `104`, with no `-1`
+adjustment. Manual `00001` is address `1`, and address `0` is unused.
 
 The manual never states this, and its per-table numbering starting at `00001` is also
-consistent with 1-based *entity numbers* (where `wire = number - 1`). It was settled
+consistent with 1-based *entity numbers* (where `address = number - 1`). It was settled
 empirically — see `implementation-status.md` §D1 for the full chain. In short, a working
 Home Assistant config reads
 
@@ -60,7 +60,7 @@ input_type: input      # -> raw 2511, i.e. 25.11 °C, "desired temperature"
 ```
 
 Manual input register `00101` is *Desired temp*, `val_d2_fp100` — `2511 / 100 = 25.11`.
-Under the 1-based reading, wire `101` would be manual `00102`, *General Heating/Cooling state*,
+Under the 1-based reading, address `101` would be manual `00102`, *General Heating/Cooling state*,
 a `val_u1` enum whose range is `0..255`. It cannot return `2511`, so that reading is
 arithmetically excluded.
 
@@ -72,7 +72,7 @@ If you ever need to re-confirm this on a new firmware, two registers hold docume
 | Input register `00014` | `1530` | Device serial number prefix |
 
 A wrong assumption here also fails loudly rather than silently: input registers jump
-`00002` to `00010`, so a 1-based client reading wire `2` gets **illegal data address**.
+`00002` to `00010`, so a 1-based client reading address `2` gets **illegal data address**.
 
 ## 3. Object address map
 

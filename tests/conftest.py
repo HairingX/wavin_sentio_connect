@@ -1,32 +1,12 @@
-"""Shared test setup.
-
-Live tests talk to a real controller on the developer's network. They must be invisible
-anywhere that controller is not - a CI runner above all, where a missing device is not a
-failure but an absence. So they are opt-in: configure a controller and they run, leave it
-unconfigured and they skip.
-
-Two independent mechanisms, because a green CI run that silently skipped everything is worse
-than a red one:
-
-  - `live_or_skip(...)` skips a module when its settings are absent.
-  - the `live` marker lets a run exclude them outright: `pytest -m "not live"`.
-
-This mirrors tests/conftest.py in modbus_event_connect. It is deliberately copied rather than
-imported: a library should not ship test scaffolding as public API, and forty lines of setup
-is cheaper than the coupling would be.
-"""
+"""Shared test setup: live tests stay invisible unless configured - `live_or_skip` skips them,
+and the `live` marker excludes them via `pytest -m "not live"`."""
 import os
 
 import pytest
 
 
 def live_setting(name: str) -> str | None:
-    """
-    A live test's setting: environment first, then mysecrets.py.
-
-    mysecrets.py is gitignored. A real address must never reach a tracked file, not even in
-    a comment.
-    """
+    """A live test's setting: environment first, then mysecrets.py (gitignored)."""
     value = os.environ.get(name)
     if value:
         return value
@@ -39,13 +19,7 @@ def live_setting(name: str) -> str | None:
 
 
 def live_or_skip(what: str, **settings: str | None) -> list[pytest.MarkDecorator]:
-    """
-    Marks for a module of live tests: the `live` marker, plus a skip when anything is missing.
-
-    Use it as `pytestmark = live_or_skip("Sentio", SENTIO_HOST=HOST)`. Naming the missing
-    settings in the reason matters: a skip whose cause is not obvious gets ignored, and then
-    the test may as well not exist.
-    """
+    """Marks for a module of live tests: the `live` marker, plus a skip naming what is missing."""
     missing = [name for name, value in settings.items() if not value]
     return [
         pytest.mark.live,
