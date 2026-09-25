@@ -30,12 +30,15 @@ from src.wavin_sentio_connect import (
     SENTIO,
     UNITS,
     LocationPointKey,
+    ModbusMode,
     PeripheralPointKey,
     PeripheralType,
     RoomLock,
+    RoomMode,
     RoomPointKey,
     RoomState,
     RoomType,
+    TemperaturePreset,
     _model as sentio_model,
     create_client_on,
     peripheral_key,
@@ -122,6 +125,34 @@ def test_a_state_reads_as_its_member() -> None:
     assert state is not None and state.value is RoomState.NONE
     kind = client.value(room_key(3, RoomPointKey.TYPE))
     assert kind is not None and kind.value is RoomType.DUMMY
+    mode = client.value(LocationPointKey.MODBUS_MODE)
+    assert mode is not None and mode.value is ModbusMode.READ_ONLY
+
+
+def test_a_room_setting_is_written_as_its_state() -> None:
+    client, gateway = _connected()
+    assert asyncio.run(client.write(room_key(1, RoomPointKey.MODE), RoomMode.MANUAL)) is True
+    assert asyncio.run(client.write(room_key(1, RoomPointKey.TEMP_PRESET), TemperaturePreset.EXTRA_COMFORT)) is True
+    registers = gateway.units[1].holding_registers
+    assert (registers[room_base(1) + 17], registers[room_base(1) + 35]) == (1, 2)
+
+
+@pytest.mark.parametrize("raw,value", [(0, False), (1, True)])
+def test_a_switch_reads_as_a_bool(raw: int, value: bool) -> None:
+    unit = _installation()
+    unit.holding_registers[27] = raw
+    client, _ = _connected(unit=unit)
+    vacation = client.value(LocationPointKey.VACATION_ENABLE)
+    assert vacation is not None and (vacation.value, vacation.quality) == (value, Quality.GOOD)
+
+
+def test_a_switch_answering_255_has_no_value_and_keeps_what_it_said() -> None:
+    """val_u1's 255 means "no value", so it is not read as on."""
+    unit = _installation()
+    unit.holding_registers[27] = 255
+    client, _ = _connected(unit=unit)
+    vacation = client.value(LocationPointKey.VACATION_ENABLE)
+    assert vacation is not None and (vacation.value, vacation.quality, vacation.raw) == (None, Quality.NO_DATA, (255,))
 
 
 def test_the_key_strings_never_change() -> None:
@@ -230,7 +261,7 @@ def test_writing_vacation_updates_every_rooms_target_without_waiting_for_its_pol
     seen: list[object] = []
     client.subscribe(room_key(1, RoomPointKey.TEMP_AIR_TARGET_ACTIVE), lambda key, old, new: seen.append(new.value))
     unit.input_registers[room_base(1) + 1] = 1600          # what the controller does on vacation
-    asyncio.run(client.write(LocationPointKey.VACATION_ENABLE, 1))
+    asyncio.run(client.write(LocationPointKey.VACATION_ENABLE, True))
     clock.advance(sentio_model.REREAD_AFTER_WRITE)
     asyncio.run(client.poll())
     assert seen == [21.0, 16.0]
@@ -358,8 +389,8 @@ def test_a_lock_mode_is_one_of_the_three_and_nothing_else() -> None:
 
 
 @pytest.mark.parametrize("key,value", [(room_key(1, RoomPointKey.MODE), 2), (room_key(1, RoomPointKey.TEMP_PRESET), 3),
-                                       (LocationPointKey.STANDBY_ENABLE, 5)])
-def test_a_switch_outside_its_range_is_refused(key: Key[int], value: int) -> None:
+                                       (LocationPointKey.STANDBY_ENABLE, 5), (room_key(1, RoomPointKey.MODE), 1.0)])
+def test_a_value_the_point_does_not_take_is_refused(key: Key[Any], value: Any) -> None:
     client, gateway = _connected()
     with pytest.raises(InvalidValueError):
         asyncio.run(client.write(key, value))

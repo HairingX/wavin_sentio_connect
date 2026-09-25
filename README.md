@@ -162,9 +162,12 @@ A room point's key is the same in every room, so code that handles
 `RoomPointKey.TEMP_AIR_CURRENT` once handles it in all of them; `RoomPointKey.all()` lists them.
 `UNITS` is every unit a Sentio point has. Key strings never change; new points only add keys.
 
-A state reads as its member of `RoomState`, `BlockingSource`, `RoomType`, `RoomLock` or
-`PeripheralType`. A number the manual does not name reads as `NO_DATA`, and the value's `.raw`
-holds the number the controller sent.
+A state reads as its member of the enum the manual's values give: `RoomState`, `BlockingSource`,
+`RoomType`, `RoomMode`, `RoomModeOverride`, `TemperaturePreset`, `RoomLock`, `HeatingCoolingMode`,
+`HeatingCoolingModeOverride`, `DeviceType`, `ModbusMode`, `UpdateMode` or `PeripheralType`, and is
+written as one. A number the manual does not name reads as `NO_DATA`, and the value's `.raw` holds
+the number the controller sent. Standby, vacation and daylight saving, which the manual gives as
+0 and 1, are `bool`; their "no value", 255, reads as `NO_DATA` too.
 
 The model is in [`_model.py`](src/wavin_sentio_connect/_model.py); every key is declared there
 with its address and encoding.

@@ -86,9 +86,11 @@ async def test_a_write_is_refused_before_it_reaches_the_controller(live: Live) -
 async def test_connects_and_identifies(live: Live) -> None:
     client = live.client
     print("\n--- controller ---")
-    for key in (LocationPointKey.DEVICE_TYPE, LocationPointKey.DATAPOINT_MAJOR, LocationPointKey.DATAPOINT_MINOR,
-                LocationPointKey.SOFTWARE_MAJOR, LocationPointKey.SOFTWARE_MINOR, LocationPointKey.HARDWARE_MAJOR,
-                LocationPointKey.HEATING_COOLING_MODE, LocationPointKey.MODBUS_MODE):
+    keys: list[Key[Any]] = [
+        LocationPointKey.DEVICE_TYPE, LocationPointKey.DATAPOINT_MAJOR, LocationPointKey.DATAPOINT_MINOR,
+        LocationPointKey.SOFTWARE_MAJOR, LocationPointKey.SOFTWARE_MINOR, LocationPointKey.HARDWARE_MAJOR,
+        LocationPointKey.HEATING_COOLING_MODE, LocationPointKey.MODBUS_MODE]
+    for key in keys:
         print(f"  {key:22} {client.value(key)}")
     assert _good(client, LocationPointKey.DEVICE_TYPE) is not None
 

@@ -10,7 +10,6 @@ from types import MappingProxyType
 
 from modbus_event_connect import (
     DataType,
-    Instances,
     Key,
     Labels,
     Limits,
@@ -19,6 +18,7 @@ from modbus_event_connect import (
     PollRate,
     Quality,
     Refresh,
+    RepeatedSection,
     Scan,
     Section,
     Unit,
@@ -105,6 +105,68 @@ class BlockingSource(IntEnum):
     HCWS_ELEMENTS_BLOCKED = 24
 
 
+class RoomMode(IntEnum):
+    """Values of a room's mode register."""
+    SCHEDULE = 0
+    """The scheduler's temperature is used, not the room's setpoint."""
+    MANUAL = 1
+
+
+class RoomModeOverride(IntEnum):
+    """Values of a room's mode override register; above NONE, the room's setpoint is not used."""
+    NONE = 0
+    TEMPORARY = 1
+    VACATION_AWAY = 2
+    ADJUST = 3
+
+
+class TemperaturePreset(IntEnum):
+    """Values of a room's temperature preset register."""
+    ECO = 0
+    COMFORT = 1
+    EXTRA_COMFORT = 2
+
+
+class HeatingCoolingMode(IntEnum):
+    """Values of the location's heating/cooling mode register."""
+    HEATING = 0
+    COOLING = 1
+
+
+class HeatingCoolingModeOverride(IntEnum):
+    """Values of the heating/cooling mode BMS override register.
+
+    Only hardware profiles with a manual change-over offer it; in others it is DISABLED.
+    """
+    DISABLED = 0
+    HEATING = 1
+    COOLING = 2
+    EXTERNAL_SWITCH = 3
+    """Set by an external switch, only where the hardware input is available."""
+
+
+class DeviceType(IntEnum):
+    """Values of the location's device type register."""
+    CCU_208 = 1
+    DHW_201 = 2
+    """Calefa domestic hot water controller."""
+
+
+class ModbusMode(IntEnum):
+    """Values of the Modbus mode register."""
+    DISABLED = 0
+    READ_ONLY = 1
+    READ_WRITE = 2
+    WRITE_WITH_PASSWORD = 3
+
+
+class UpdateMode(IntEnum):
+    """Values of the update mode register."""
+    DONT_ALLOW_FROM_MOBILE_APP = 0
+    ENABLED = 1
+    DISABLED_ENTIRELY = 2
+
+
 class PeripheralType(IntEnum):
     """Values of the peripheral type register."""
     DHW_201 = 0x0
@@ -153,26 +215,26 @@ class LocationPointKey:
     """The key of each point the location has."""
     DATAPOINT_MAJOR = Key("datapoint_major", int)
     DATAPOINT_MINOR = Key("datapoint_minor", int)
-    DEVICE_TYPE = Key("device_type", int)
+    DEVICE_TYPE = Key("device_type", DeviceType)
     HARDWARE_MAJOR = Key("hardware_major", int)
     SOFTWARE_MAJOR = Key("software_major", int)
     SOFTWARE_MINOR = Key("software_minor", int)
     SERIAL_NUMBER_PREFIX = Key("serial_number_prefix", int)
     SERIAL_NUMBER = Key("serial_number", int)
-    HEATING_COOLING_MODE = Key("heating_cooling_mode", int)
+    HEATING_COOLING_MODE = Key("heating_cooling_mode", HeatingCoolingMode)
     SETPOINT_MAJOR = Key("setpoint_major", int)
     SETPOINT_MINOR = Key("setpoint_minor", int)
-    MODBUS_MODE = Key("modbus_mode", int)
+    MODBUS_MODE = Key("modbus_mode", ModbusMode)
     MODBUS_PASSWORD = Key("modbus_password", int)
     LOCATION_NAME = Key("location_name", str)
-    STANDBY_ENABLE = Key("standby_enable", int)
-    VACATION_ENABLE = Key("vacation_enable", int)
+    STANDBY_ENABLE = Key("standby_enable", bool)
+    VACATION_ENABLE = Key("vacation_enable", bool)
     DATETIME_UNIX = Key("datetime_unix", int)
-    DAYLIGHT_SAVING_ENABLE = Key("daylight_saving_enable", int)
+    DAYLIGHT_SAVING_ENABLE = Key("daylight_saving_enable", bool)
     TEMP_OUTDOOR_COOLING_MIN = Key("temp_outdoor_cooling_min", float)
     TEMP_OUTDOOR_HEATING_MAX = Key("temp_outdoor_heating_max", float)
-    UPDATE_MODE = Key("update_mode", int)
-    HEATING_COOLING_MODE_BMS_OVERRIDE = Key("heating_cooling_mode_bms_override", int)
+    UPDATE_MODE = Key("update_mode", UpdateMode)
+    HEATING_COOLING_MODE_BMS_OVERRIDE = Key("heating_cooling_mode_bms_override", HeatingCoolingModeOverride)
     TIMEZONE = Key("timezone", int)
     SYSTEM_WARNING = Key("system_warning", bool)
     SYSTEM_ERROR = Key("system_error", bool)
@@ -211,8 +273,8 @@ class RoomPointKey:
     TYPE = PointKey("type", RoomType)
     ASSOCIATED_HEATING_SOURCE = PointKey("associated_heating_source", int)
     NAME = PointKey("name", str)
-    MODE = PointKey("mode", int)
-    MODE_OVERRIDE = PointKey("mode_override", int)
+    MODE = PointKey("mode", RoomMode)
+    MODE_OVERRIDE = PointKey("mode_override", RoomModeOverride)
     TEMP_AIR_TARGET = PointKey("temp_air_target", float)
     LOCK = PointKey("lock", RoomLock)
     TEMP_STANDBY = PointKey("temp_standby", float)
@@ -229,7 +291,7 @@ class RoomPointKey:
     DEW_POINT_COOLING_THRESHOLD = PointKey("dew_point_cooling_threshold", float)
     DEW_POINT_COOLING_THRESHOLD_HYSTERESIS = PointKey("dew_point_cooling_threshold_hysteresis", float)
     HUMIDITY_HIGH_ALARM_LIMIT = PointKey("humidity_high_alarm_limit", float)
-    TEMP_PRESET = PointKey("temp_preset", int)
+    TEMP_PRESET = PointKey("temp_preset", TemperaturePreset)
     WARNING = PointKey("warning", bool)
     ERROR = PointKey("error", bool)
     LOW_BATTERY = PointKey("low_battery", bool)
@@ -336,6 +398,18 @@ def _u8[T](key: Key[T], read: InputRegister | HoldingRegister, *, write: Holding
                  labels=labels or {})
 
 
+def _flag(key: Key[bool], register: HoldingRegister, *, on_write: Refresh | None = None) -> Point[bool]:
+    """val_u1 read as off (0) or on (1); anything else - 255 in particular - means no value."""
+    return Point(key, read=register, write=register, data_type=DataType.BOOL, raw_range=(0, 1),
+                 poll_rate=PollRate.SLOW, on_write=on_write)
+
+
+def _choice[T](key: Key[T], register: HoldingRegister, *, on_write: Refresh | None = None) -> Point[T]:
+    """val_u1 naming a state, written as one of them; 255 means no value."""
+    return Point(key, read=register, write=register, data_type=DataType.UINT16, raw_range=(0, 254),
+                 poll_rate=PollRate.SLOW, on_write=on_write)
+
+
 def _u16[T](key: Key[T], read: InputRegister | HoldingRegister | None, *, write: HoldingRegister | None = None,
             poll_rate: PollRate = PollRate.SLOW, write_kind: WriteKind = WriteKind.STATE) -> Point[T]:
     """val_u2: 0xFFFF means no value."""
@@ -399,16 +473,14 @@ LOCATION = [
     # Write-only per the manual: it can never be read back.
     _u16(LocationPointKey.MODBUS_PASSWORD, None, write=HoldingRegister(6), write_kind=WriteKind.COMMAND),
     _text(LocationPointKey.LOCATION_NAME, HoldingRegister(10), write=HoldingRegister(10)),
-    _u8(LocationPointKey.STANDBY_ENABLE, HoldingRegister(26), write=HoldingRegister(26), maximum=1,
-        on_write=rereads(ROOM_TARGET)),
-    _u8(LocationPointKey.VACATION_ENABLE, HoldingRegister(27), write=HoldingRegister(27), maximum=1,
-        on_write=rereads(ROOM_TARGET)),
+    _flag(LocationPointKey.STANDBY_ENABLE, HoldingRegister(26), on_write=rereads(ROOM_TARGET)),
+    _flag(LocationPointKey.VACATION_ENABLE, HoldingRegister(27), on_write=rereads(ROOM_TARGET)),
     _u32(LocationPointKey.DATETIME_UNIX, HoldingRegister(28), write=HoldingRegister(28), unit=Unit.SECONDS),
-    _u8(LocationPointKey.DAYLIGHT_SAVING_ENABLE, HoldingRegister(30), write=HoldingRegister(30), maximum=1),
+    _flag(LocationPointKey.DAYLIGHT_SAVING_ENABLE, HoldingRegister(30)),
     _fp100(LocationPointKey.TEMP_OUTDOOR_COOLING_MIN, HoldingRegister(31), write=HoldingRegister(31)),
     _fp100(LocationPointKey.TEMP_OUTDOOR_HEATING_MAX, HoldingRegister(32), write=HoldingRegister(32)),
-    _u8(LocationPointKey.UPDATE_MODE, HoldingRegister(33), write=HoldingRegister(33), maximum=2),
-    _u8(LocationPointKey.HEATING_COOLING_MODE_BMS_OVERRIDE, HoldingRegister(34), write=HoldingRegister(34)),
+    _choice(LocationPointKey.UPDATE_MODE, HoldingRegister(33)),
+    _choice(LocationPointKey.HEATING_COOLING_MODE_BMS_OVERRIDE, HoldingRegister(34)),
     _u16(LocationPointKey.TIMEZONE, HoldingRegister(35), write=HoldingRegister(35)),
 
     # The manual: "A problem is pending in whole system" / "A critical problem is pending".
@@ -475,8 +547,8 @@ def room(n: int) -> list[Point[Any]]:
 
         # --- holding registers: what the user has set
         _text(room_key(n, RoomPointKey.NAME), HoldingRegister(base + 1), write=HoldingRegister(base + 1)),
-        switch(RoomPointKey.MODE, 17, 1, on_write=retarget),
-        switch(RoomPointKey.MODE_OVERRIDE, 18, 3, on_write=retarget),
+        _choice(room_key(n, RoomPointKey.MODE), HoldingRegister(base + 17), on_write=retarget),
+        _choice(room_key(n, RoomPointKey.MODE_OVERRIDE), HoldingRegister(base + 18), on_write=retarget),
         setting(RoomPointKey.TEMP_AIR_TARGET, 19, on_write=retarget),
         Point(room_key(n, RoomPointKey.LOCK), read=HoldingRegister(base + 20), write=HoldingRegister(base + 20)),
         setting(RoomPointKey.TEMP_STANDBY, 21, on_write=retarget),
@@ -493,7 +565,7 @@ def room(n: int) -> list[Point[Any]]:
         setting(RoomPointKey.DEW_POINT_COOLING_THRESHOLD, 32),
         setting(RoomPointKey.DEW_POINT_COOLING_THRESHOLD_HYSTERESIS, 33),
         setting(RoomPointKey.HUMIDITY_HIGH_ALARM_LIMIT, 34, Unit.PERCENT),
-        switch(RoomPointKey.TEMP_PRESET, 35, 2, on_write=retarget),
+        _choice(room_key(n, RoomPointKey.TEMP_PRESET), HoldingRegister(base + 35), on_write=retarget),
 
         # --- discrete inputs: its alarms
         _alarm(room_key(n, RoomPointKey.WARNING), DiscreteInput(base + 1)),
@@ -573,8 +645,8 @@ SENTIO = Model(
     read_back_after=0.5,  # measured with testing.measure_read_back on a CCU-208, address space 3.7
     sections=[
         Section(LOCATION),
-        Instances(room, range(1, ROOM_COUNT + 1), label=ROOM),
-        Instances(peripheral, range(1, PERIPHERAL_COUNT + 1), label=PERIPHERAL),
+        RepeatedSection(room, range(1, ROOM_COUNT + 1), label=ROOM),
+        RepeatedSection(peripheral, range(1, PERIPHERAL_COUNT + 1), label=PERIPHERAL),
     ],
     scan_steps=[check_address_space, find_installed_rooms_and_peripherals, find_what_each_room_uses],
 )
