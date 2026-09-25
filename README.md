@@ -49,7 +49,10 @@ asyncio.run(main())
 ```
 
 When `connect()` returns, `client.keys` holds exactly what this installation has - a room that
-was never set up is not there, so no entity is built for it. `rooms(client)` and
+was never set up is not there, so no entity is built for it. Nor is what the controller says a
+room lacks: a dummy room ("no thermostat or sensor installed") has no temperature, humidity or
+dew point, and a room not associated with radiators, underfloor heating, drying, thermal
+integration or ventilation has no state or blocking source for it. `rooms(client)` and
 `peripherals(client)` describe the installation from values already read, with no extra
 requests.
 
@@ -96,7 +99,9 @@ await client.write("room_1_lock", "hotel")        # locked / hotel / unlocked
   "no reading" sentinel, which could never be read back.
 - Writes are sent in order. Tapping + five times sends the first value and the last, not all
   five.
-- The written point is read back a moment later, since the controller may clamp a value.
+- The written point is read back, so subscribers see what the controller holds rather than what
+  was asked for. A write that changes the rooms' regulated targets - vacation, standby, a room's
+  setpoint, mode or preset - reads those targets again too.
 - The controller answers `SERVER_DEVICE_BUSY` (`0x06`) while it stores a change; the manual says
   such a request "shall be repeated again", and the library does, with backoff.
 - `client.write_pending` - and the subscribable `Status.WRITE_PENDING` - is true from the moment
@@ -108,6 +113,17 @@ the controller:
 ```python
 client = create_client("<device-ip>", read_only=True)
 ```
+
+## Alarms
+
+Every alarm and warning the manual documents for the location, the rooms and the peripherals is
+a key: `system_warning`, `system_error`, and per room and peripheral `..._warning`,
+`..._error`, `..._low_battery` and `room_{n}_peripheral_lost` / `peripheral_{n}_lost`.
+
+The manual describes the location's two bits as covering the whole system ("A problem is
+pending in whole system"). Those two are always read at the `FAST` rate; when either changes,
+every alarm someone subscribes to is read at once. Each alarm is also read by itself at the
+`RARE` rate, in case a controller does not reflect it in the system's bits.
 
 ## Sharing a connection
 
@@ -123,12 +139,26 @@ client = create_client_on(connection, unit_id=1)
 ```
 
 The client is asynchronous end to end - no threads, nothing that blocks the event loop - and
-owns no timer. In Home Assistant, call `poll()` from the integration's own tick.
+owns no timer: the application calls `poll()` from its own loop.
 
 ## Keys and addressing
 
-Keys are plain strings: `room_{n}_...` for rooms 1-16 and `peripheral_{n}_...` for slots 1-64.
-The model is in [`model.py`](src/wavin_sentio_connect/model.py); every key is declared there
+Every point has its key in `LocationPointKey`, `RoomPointKey` or `PeripheralPointKey`. A
+location point's is its whole key; a room's or a peripheral's becomes one with the instance:
+
+```python
+from wavin_sentio_connect import ROOM, LocationPointKey, RoomPointKey, room_key
+
+client.value(LocationPointKey.VACATION_ENABLE)               # key "vacation_enable"
+for n in client.instances(ROOM):                             # the rooms this installation has
+    client.value(room_key(n, RoomPointKey.TEMP_AIR_CURRENT))  # key "room_4_temp_air_current"
+```
+
+A room point's key is the same in every room, so code that handles
+`RoomPointKey.TEMP_AIR_CURRENT` once handles it in all of them. `UNITS` is every unit a Sentio
+point has. Key strings never change; new points only add keys.
+
+The model is in [`_model.py`](src/wavin_sentio_connect/_model.py); every key is declared there
 with its address and encoding.
 
 The manual's "Modbus Address" column holds the addresses themselves, so its numbers are used unchanged:
@@ -156,9 +186,6 @@ different under standby, vacation or a schedule.
 
 ## Known gaps
 
-- **Alarms are not modelled yet.** They are discrete inputs (77 registers: per-room warnings,
-  low battery, peripheral lost, sensor failures). The library reads discrete inputs, and the
-  controller has been verified to answer them; they still need adding to the model.
 - Only the location, room and peripheral objects are modelled. Outdoor, DHW, ITC, HCC, buffer
   tank, ventilation and dehumidifier objects are documented in the CSV but not yet wired.
 

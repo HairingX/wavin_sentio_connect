@@ -8,11 +8,22 @@ from modbus_event_connect.clock import Clock
 from modbus_event_connect.modbus import ModbusConnection, ModbusDevice
 from modbus_event_connect.point import Labels
 
-from .model import SENTIO, PeripheralType, RoomType
+from ._model import (
+    PERIPHERAL,
+    ROOM,
+    SENTIO,
+    PeripheralType,
+    PeripheralPointKey,
+    RoomType,
+    RoomPointKey,
+    peripheral_key,
+    room_key,
+)
 
 DEFAULT_PORT = 502
+"""The Modbus TCP port, per the manual."""
 DEFAULT_UNIT_ID = 1
-"""Some controllers answer on 255 instead."""
+"""The manual gives 255 for Modbus TCP "if needed"."""
 
 
 def create_client(host: str, *, port: int = DEFAULT_PORT, unit_id: int = DEFAULT_UNIT_ID,
@@ -75,9 +86,9 @@ class SentioPeripheral:
 def rooms(client: Client) -> list[SentioRoom]:
     """The rooms this installation has, from values read during connect()."""
     found: list[SentioRoom] = []
-    for n in client.instances("room"):
-        name = client.value(f"room_{n}_name")
-        room_type = client.value(f"room_{n}_type")
+    for n in client.instances(ROOM):
+        name = client.value(room_key(n, RoomPointKey.NAME))
+        room_type = client.value(room_key(n, RoomPointKey.TYPE))
         found.append(SentioRoom(
             number=n,
             name=name.value if name is not None and isinstance(name.value, str) else "",
@@ -90,13 +101,13 @@ def rooms(client: Client) -> list[SentioRoom]:
 def peripherals(client: Client) -> list[SentioPeripheral]:
     """The peripherals paired with this installation, from values read during connect()."""
     found: list[SentioPeripheral] = []
-    for slot in client.instances("peripheral"):
+    for slot in client.instances(PERIPHERAL):
         found.append(SentioPeripheral(
             slot=slot,
-            name=_text(client, f"peripheral_{slot}_name"),
-            type=_integer(client, f"peripheral_{slot}_type"),
-            serial_number=_integer(client, f"peripheral_{slot}_serial_number"),
-            owner=_integer(client, f"peripheral_{slot}_owner"),
+            name=_text(client, peripheral_key(slot, PeripheralPointKey.NAME)),
+            type=_integer(client, peripheral_key(slot, PeripheralPointKey.TYPE)),
+            serial_number=_integer(client, peripheral_key(slot, PeripheralPointKey.SERIAL_NUMBER)),
+            owner=_integer(client, peripheral_key(slot, PeripheralPointKey.OWNER)),
             keys=tuple(p.key for p in client.select(Labels(peripheral=slot))),
         ))
     return found

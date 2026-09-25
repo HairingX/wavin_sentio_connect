@@ -1,18 +1,22 @@
 """Wavin Sentio over Modbus TCP, built on modbus_event_connect."""
-from .model import (
-    ADDRESS_SPACE_REQUIRED,
-    MAX_REGISTERS,
-    PERIPHERAL_COUNT,
-    ROOM_COUNT,
+from ._model import (
+    PERIPHERAL,
+    ROOM,
     SENTIO,
+    UNITS,
     BlockingSource,
+    LocationPointKey,
+    PeripheralPointKey,
     PeripheralType,
+    RoomPointKey,
     RoomState,
     RoomType,
-    peripheral_base,
-    room_base,
+    peripheral_key,
+    room_key,
 )
-from .sentio import (
+from ._sentio import (
+    DEFAULT_PORT,
+    DEFAULT_UNIT_ID,
     SentioPeripheral,
     SentioRoom,
     create_client,
@@ -23,21 +27,25 @@ from .sentio import (
 
 __version__ = "0.2.0"
 __all__ = [
-    "ADDRESS_SPACE_REQUIRED",
-    "MAX_REGISTERS",
-    "PERIPHERAL_COUNT",
-    "ROOM_COUNT",
+    "DEFAULT_PORT",
+    "DEFAULT_UNIT_ID",
+    "PERIPHERAL",
+    "ROOM",
     "SENTIO",
+    "UNITS",
     "BlockingSource",
+    "LocationPointKey",
+    "PeripheralPointKey",
     "PeripheralType",
+    "RoomPointKey",
     "RoomState",
     "RoomType",
     "SentioPeripheral",
     "SentioRoom",
     "create_client",
     "create_client_on",
-    "peripheral_base",
+    "peripheral_key",
     "peripherals",
-    "room_base",
+    "room_key",
     "rooms",
 ]

@@ -50,21 +50,14 @@ protocol (PDU) starting addresses, so manual `00104` is address `104`, with no `
 adjustment. Manual `00001` is address `1`, and address `0` is unused.
 
 The manual never states this, and its per-table numbering starting at `00001` is also
-consistent with 1-based *entity numbers* (where `address = number - 1`). It was settled
-empirically — see `implementation-status.md` §D1 for the full chain. In short, a working
-Home Assistant config reads
+consistent with 1-based *entity numbers* (where `address = number - 1`). It was settled by
+reading a CCU-208: input register address `101` returns `2100`, which fits manual input
+register `00101`, room 1's *Desired temp* (`val_d2_fp100`, 21.00 °C). Under the 1-based
+reading, address `101` would be manual `00102`, *General Heating/Cooling state*, a `val_u1`
+enum whose range is `0..255`, which cannot hold `2100`.
 
-```yaml
-address: 101
-input_type: input      # -> raw 2511, i.e. 25.11 °C, "desired temperature"
-```
-
-Manual input register `00101` is *Desired temp*, `val_d2_fp100` — `2511 / 100 = 25.11`.
-Under the 1-based reading, address `101` would be manual `00102`, *General Heating/Cooling state*,
-a `val_u1` enum whose range is `0..255`. It cannot return `2511`, so that reading is
-arithmetically excluded.
-
-If you ever need to re-confirm this on a new firmware, two registers hold documented constants:
+Two registers hold documented constants, read on the same controller as the manual gives them,
+and worth reading again on a new firmware:
 
 | Manual address | Value | Meaning |
 |---|---|---|
