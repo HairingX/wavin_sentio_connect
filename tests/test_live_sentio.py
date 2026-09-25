@@ -19,11 +19,8 @@ from dataclasses import dataclass
 
 import pytest
 import pytest_asyncio
-from modbus_event_connect.client import Client
-from modbus_event_connect.errors import ReadOnlyError
+from modbus_event_connect import Client, DataValue, Quality, ReadOnlyError, Unit
 from modbus_event_connect.modbus import FunctionCode, ModbusDevice, ModbusTcpConnection, Request
-from modbus_event_connect.unit import Unit
-from modbus_event_connect.value import DataValue, Quality
 
 from conftest import live_or_skip, live_setting
 from src.wavin_sentio_connect import SENTIO, peripherals, rooms
@@ -71,7 +68,7 @@ def _good(client: Client, key: str) -> object:
 
 async def test_a_write_is_refused_before_it_reaches_the_controller(live: Live) -> None:
     """The guard itself must work, or every other test here would be a risk."""
-    key = next(k for k in live.client.keys if live.client.can_write(k))
+    key = next(k for k in live.client.points if live.client.can_write(k))
     with pytest.raises(ReadOnlyError):
         await live.client.write(key, 0)
 
@@ -128,11 +125,11 @@ async def test_every_value_is_good_or_says_why_not(live: Live) -> None:
     """A read that failed would be STALE. After a clean scan, nothing should be."""
     client = live.client
     qualities: Counter[str] = Counter()
-    for key in client.keys:
+    for key in client.points:
         current = client.value(key)
         if current is not None:
             qualities[current.quality.name] += 1
-    print(f"\n--- qualities over {len(client.keys)} keys --- {dict(qualities)}")
+    print(f"\n--- qualities over {len(client.points)} keys --- {dict(qualities)}")
     assert qualities[Quality.STALE.name] == 0
 
 
@@ -151,10 +148,10 @@ async def test_every_subscriber_hears_its_value(live: Live) -> None:
 
     def listen(key: str, old: DataValue | None, new: DataValue) -> None:
         heard[key] = new
-    unsubscribers = [client.subscribe(key, listen) for key in client.keys if client.can_read(key)]
+    unsubscribers = [client.subscribe(key, listen) for key in client.points if client.can_read(key)]
     for unsubscribe in unsubscribers:
         unsubscribe()
-    readable = [k for k in client.keys if client.can_read(k)]
+    readable = [k for k in client.points if client.can_read(k)]
     print(f"\n  {len(heard)} of {len(readable)} readable keys delivered a value on subscribe")
     assert set(heard) == set(readable), "a readable key had no value after the scan"
 

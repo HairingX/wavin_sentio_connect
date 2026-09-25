@@ -25,7 +25,7 @@ from ._sentio import (
     rooms,
 )
 
-__version__ = "0.2.0"
+__version__ = "0.2.0rc1"
 __all__ = [
     "DEFAULT_PORT",
     "DEFAULT_UNIT_ID",

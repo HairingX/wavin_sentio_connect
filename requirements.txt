@@ -6,4 +6,4 @@
 setuptools
 pytest
 pytest-asyncio
-modbus_event_connect >=0.2,<0.3
+modbus_event_connect >=0.2.0rc1,<0.3

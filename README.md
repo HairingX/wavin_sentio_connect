@@ -48,8 +48,8 @@ async def main():
 asyncio.run(main())
 ```
 
-When `connect()` returns, `client.keys` holds exactly what this installation has - a room that
-was never set up is not there, so no entity is built for it. Nor is what the controller says a
+When `connect()` returns, `client.points` holds exactly what this installation has - a room that
+was never set up is not there, so nothing is built for it. Nor is what the controller says a
 room lacks: a dummy room ("no thermostat or sensor installed") has no temperature, humidity or
 dew point, and a room not associated with radiators, underfloor heating, drying, thermal
 integration or ventilation has no state or blocking source for it. `rooms(client)` and

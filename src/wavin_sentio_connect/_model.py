@@ -6,12 +6,22 @@ from collections.abc import Mapping
 from enum import IntEnum, StrEnum
 from types import MappingProxyType
 
-from modbus_event_connect.data_type import DataType
+from modbus_event_connect import (
+    DataType,
+    Instances,
+    Labels,
+    Limits,
+    Model,
+    Point,
+    PollRate,
+    Quality,
+    Refresh,
+    Scan,
+    Section,
+    Unit,
+    WriteKind,
+)
 from modbus_event_connect.modbus import DiscreteInput, HoldingRegister, InputRegister, ModbusOptions, plain
-from modbus_event_connect.model import Instances, Model, Scan, Section
-from modbus_event_connect.point import Labels, Limits, Point, PollRate, Refresh, WriteKind
-from modbus_event_connect.unit import Unit
-from modbus_event_connect.value import Quality
 
 _LOGGER = logging.getLogger(__name__)
 

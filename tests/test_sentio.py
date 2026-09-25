@@ -4,21 +4,25 @@ import asyncio
 import logging
 
 import pytest
-from modbus_event_connect.client import Client
-from modbus_event_connect.conversion import InvalidValueError
-from modbus_event_connect.data_type import DataType, DataTypeKind
-from modbus_event_connect.errors import ReadOnlyError
+from modbus_event_connect import (
+    Client,
+    DataType,
+    DataTypeKind,
+    InvalidValueError,
+    Labels,
+    PollRate,
+    Quality,
+    ReadOnlyError,
+    Unit,
+)
 from modbus_event_connect.modbus import FunctionCode
-from modbus_event_connect.model import resolve
-from modbus_event_connect.point import Labels, PollRate
 from modbus_event_connect.testing import (
     FakeClock,
     SimulatedModbusDevice,
     SimulatedModbusGateway,
     assert_models_valid,
+    resolve,
 )
-from modbus_event_connect.unit import Unit
-from modbus_event_connect.value import Quality
 
 from src.wavin_sentio_connect import (
     SENTIO,
@@ -222,7 +226,7 @@ def test_only_what_is_installed_becomes_keys() -> None:
     client, _ = _connected()
     assert client.instances("room") == (1, 3)
     assert client.instances("peripheral") == (1, 2)
-    assert not any(k.startswith("room_2_") or k.startswith("peripheral_3_") for k in client.keys)
+    assert not any(k.startswith("room_2_") or k.startswith("peripheral_3_") for k in client.points)
 
 
 def test_an_absent_room_costs_its_probe_and_nothing_more() -> None:

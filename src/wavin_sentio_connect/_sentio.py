@@ -3,10 +3,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from modbus_event_connect.client import Client
-from modbus_event_connect.clock import Clock
+from modbus_event_connect import Client, Clock, Labels
 from modbus_event_connect.modbus import ModbusConnection, ModbusDevice
-from modbus_event_connect.point import Labels
 
 from ._model import (
     PERIPHERAL,
