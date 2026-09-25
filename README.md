@@ -104,8 +104,8 @@ await client.write("room_1_lock", "hotel")        # locked / hotel / unlocked
   setpoint, mode or preset - reads those targets again too.
 - The controller answers `SERVER_DEVICE_BUSY` (`0x06`) while it stores a change; the manual says
   such a request "shall be repeated again", and the library does, with backoff.
-- `client.write_pending` - and the subscribable `Status.WRITE_PENDING` - is true from the moment
-  a write is asked for until the last one has finished.
+- `client.status(Status.WRITE_PENDING)` - which `client.subscribe_status` follows - is true from
+  the moment a write is asked for until the last one has finished.
 
 For monitoring only, create the client read-only; every write is then refused before it reaches
 the controller:
