@@ -6,5 +6,4 @@
 setuptools
 pytest
 pytest-asyncio
-# modbus_event_connect ~=0.1
-modbus_event_connect @ git+https://github.com/HairingX/modbus_event_connect
+modbus_event_connect >=0.2,<0.3

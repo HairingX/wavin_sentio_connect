@@ -83,9 +83,7 @@ client.set_poll_interval("room_4_temp_air_current", 2)
 await client.refresh(PollRate.STATIC)        # re-read the static values now
 ```
 
-Only what something wants is read: a subscriber, or `client.set_polling(key)`. Measured against a
-real CCU-208 with 13 rooms and 15 peripherals, connecting - scanning every room and slot and
-reading all 643 values once - takes under a second.
+Only what something wants is read: a subscriber, or `client.set_polling(key)`.
 
 ## Writing
 
