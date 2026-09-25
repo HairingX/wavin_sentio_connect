@@ -2,6 +2,7 @@
 peripherals 1 and 2, nothing else - exactly what the scan must find."""
 import asyncio
 import logging
+from typing import Any
 
 import pytest
 from modbus_event_connect import (
@@ -9,6 +10,7 @@ from modbus_event_connect import (
     DataType,
     DataTypeKind,
     InvalidValueError,
+    Key,
     Labels,
     PollRate,
     Quality,
@@ -30,14 +32,17 @@ from src.wavin_sentio_connect import (
     LocationPointKey,
     PeripheralPointKey,
     PeripheralType,
+    RoomLock,
     RoomPointKey,
+    RoomState,
+    RoomType,
+    _model as sentio_model,
     create_client_on,
     peripheral_key,
     peripherals,
     room_key,
     rooms,
 )
-from src.wavin_sentio_connect import _model as sentio_model
 from src.wavin_sentio_connect._model import PERIPHERAL_COUNT, ROOM_COUNT, peripheral_base, room_base
 
 
@@ -95,11 +100,28 @@ def test_the_model_has_every_room_and_slot_the_address_space_defines() -> None:
 
 
 def test_every_key_is_one_named_value_and_every_named_value_is_a_key() -> None:
-    named = [*LocationPointKey,
-             *(room_key(n, value) for n in range(1, ROOM_COUNT + 1) for value in RoomPointKey),
-             *(peripheral_key(slot, value) for slot in range(1, PERIPHERAL_COUNT + 1) for value in PeripheralPointKey)]
+    named: list[Key[Any]] = [
+        *LocationPointKey.all(),
+        *(room_key(n, point) for n in range(1, ROOM_COUNT + 1) for point in RoomPointKey.all()),
+        *(peripheral_key(slot, point) for slot in range(1, PERIPHERAL_COUNT + 1) for point in PeripheralPointKey.all())]
     assert len(set(named)) == len(named)
     assert set(named) == set(resolve(SENTIO, {}).points)
+
+
+def test_every_key_names_the_type_its_point_holds() -> None:
+    """The model builds each point from its key, so a key and its point cannot disagree."""
+    points = resolve(SENTIO, {}).points
+    assert all(points[key].key.type is key.type for key in LocationPointKey.all())
+    assert all(points[room_key(1, point)].key.type is point.type for point in RoomPointKey.all())
+    assert all(points[peripheral_key(1, point)].key.type is point.type for point in PeripheralPointKey.all())
+
+
+def test_a_state_reads_as_its_member() -> None:
+    client, _ = _connected()
+    state = client.value(room_key(1, RoomPointKey.STATE))
+    assert state is not None and state.value is RoomState.NONE
+    kind = client.value(room_key(3, RoomPointKey.TYPE))
+    assert kind is not None and kind.value is RoomType.DUMMY
 
 
 def test_the_key_strings_never_change() -> None:
@@ -141,10 +163,8 @@ def test_text_is_sixteen_registers_and_temperatures_are_signed_hundredths() -> N
 
 
 def test_the_room_lock_is_a_closed_set() -> None:
-    lock = resolve(SENTIO, {}).point("room_1_lock").data_type
-    assert lock.kind is DataTypeKind.ENUM and lock.mapping is not None
-    assert dict(lock.mapping) == {8: "locked", 16: "hotel", 32: "unlocked"}
-    assert DataType.UINT16.kind is not lock.kind
+    assert resolve(SENTIO, {}).point("room_1_lock").key.type is RoomLock
+    assert {member.value for member in RoomLock} == {8, 16, 32}
 
 
 @pytest.mark.parametrize("name,poll_rate", [
@@ -180,7 +200,7 @@ def test_a_raised_alarm_is_reported_without_waiting_for_its_own_schedule() -> No
     client = create_client_on(SimulatedModbusGateway({1: unit}), clock=clock)
     asyncio.run(client.connect())
     seen: list[object] = []
-    client.subscribe("room_1_low_battery", lambda key, old, new: seen.append(new.value))
+    client.subscribe(room_key(1, RoomPointKey.LOW_BATTERY), lambda key, old, new: seen.append(new.value))
     unit.discrete_inputs[1] = unit.discrete_inputs[room_base(1) + 3] = 1
     clock.advance(10)
     asyncio.run(client.poll())
@@ -208,9 +228,9 @@ def test_writing_vacation_updates_every_rooms_target_without_waiting_for_its_pol
     client = create_client_on(SimulatedModbusGateway({1: unit}), clock=clock)
     asyncio.run(client.connect())
     seen: list[object] = []
-    client.subscribe("room_1_temp_air_target_active", lambda key, old, new: seen.append(new.value))
+    client.subscribe(room_key(1, RoomPointKey.TEMP_AIR_TARGET_ACTIVE), lambda key, old, new: seen.append(new.value))
     unit.input_registers[room_base(1) + 1] = 1600          # what the controller does on vacation
-    asyncio.run(client.write("vacation_enable", 1))
+    asyncio.run(client.write(LocationPointKey.VACATION_ENABLE, 1))
     clock.advance(sentio_model.REREAD_AFTER_WRITE)
     asyncio.run(client.poll())
     assert seen == [21.0, 16.0]
@@ -277,7 +297,7 @@ def test_an_old_address_space_is_warned_about() -> None:
 
 def test_a_room_temperature_is_read_in_degrees() -> None:
     client, _ = _connected()
-    current = client.value("room_1_temp_air_current")
+    current = client.value(room_key(1, RoomPointKey.TEMP_AIR_CURRENT))
     assert current is not None and (current.value, current.quality) == (21.5, Quality.GOOD)
 
 
@@ -285,7 +305,7 @@ def test_a_missing_reading_is_no_data_not_327_degrees() -> None:
     unit = _installation()
     unit.input_registers[room_base(1) + 5] = 0x7FFF
     client, _ = _connected(unit=unit)
-    current = client.value("room_1_temp_floor_current")
+    current = client.value(room_key(1, RoomPointKey.TEMP_FLOOR_CURRENT))
     assert current is not None and (current.value, current.quality) == (None, Quality.NO_DATA)
 
 
@@ -308,13 +328,13 @@ def test_a_function_a_room_is_not_associated_with_has_no_state_keys() -> None:
 
 def test_a_negative_outdoor_limit_is_negative() -> None:
     client, _ = _connected()
-    current = client.value("temp_outdoor_cooling_min")
+    current = client.value(LocationPointKey.TEMP_OUTDOOR_COOLING_MIN)
     assert current is not None and current.value == -5.0
 
 
 def test_names_decode() -> None:
     client, _ = _connected()
-    location = client.value("location_name")
+    location = client.value(LocationPointKey.LOCATION_NAME)
     assert location is not None and location.value == "Home"
 
 
@@ -322,23 +342,24 @@ def test_names_decode() -> None:
 
 def test_a_target_temperature_is_written_in_hundredths() -> None:
     client, gateway = _connected()
-    assert asyncio.run(client.write("room_1_temp_air_target", 22.5)) is True
+    assert asyncio.run(client.write(room_key(1, RoomPointKey.TEMP_AIR_TARGET), 22.5)) is True
     assert gateway.units[1].holding_registers[room_base(1) + 19] == 2250
     [write] = [r for _, r in gateway.requests if not r.function.is_read]
     assert (write.function, write.address) == (FunctionCode.WRITE_SINGLE_REGISTER, room_base(1) + 19)
 
 
-def test_a_lock_mode_is_written_by_name_and_only_those_three() -> None:
+def test_a_lock_mode_is_one_of_the_three_and_nothing_else() -> None:
     client, gateway = _connected()
-    assert asyncio.run(client.write("room_1_lock", "hotel")) is True
+    assert asyncio.run(client.write(room_key(1, RoomPointKey.LOCK), RoomLock.HOTEL)) is True
     assert gateway.units[1].holding_registers[room_base(1) + 20] == 16
+    not_a_lock: Any = 64
     with pytest.raises(InvalidValueError):
-        asyncio.run(client.write("room_1_lock", "open"))
+        asyncio.run(client.write(room_key(1, RoomPointKey.LOCK), not_a_lock))
 
 
-@pytest.mark.parametrize("key,value", [("room_1_mode", 2), ("room_1_temp_preset", 3),
-                                       ("standby_enable", 5)])
-def test_a_switch_outside_its_range_is_refused(key: str, value: int) -> None:
+@pytest.mark.parametrize("key,value", [(room_key(1, RoomPointKey.MODE), 2), (room_key(1, RoomPointKey.TEMP_PRESET), 3),
+                                       (LocationPointKey.STANDBY_ENABLE, 5)])
+def test_a_switch_outside_its_range_is_refused(key: Key[int], value: int) -> None:
     client, gateway = _connected()
     with pytest.raises(InvalidValueError):
         asyncio.run(client.write(key, value))
@@ -349,11 +370,11 @@ def test_writing_the_no_reading_sentinel_is_refused() -> None:
     """327.67 °C encodes to 0x7FFF, which the controller would read back as "no reading"."""
     client, _ = _connected()
     with pytest.raises(InvalidValueError):
-        asyncio.run(client.write("room_1_temp_air_target", 327.67))
+        asyncio.run(client.write(room_key(1, RoomPointKey.TEMP_AIR_TARGET), 327.67))
 
 
 def test_a_read_only_client_never_writes() -> None:
     client, gateway = _connected(read_only=True)
     with pytest.raises(ReadOnlyError):
-        asyncio.run(client.write("room_1_temp_air_target", 22.0))
+        asyncio.run(client.write(room_key(1, RoomPointKey.TEMP_AIR_TARGET), 22.0))
     assert not [r for _, r in gateway.requests if not r.function.is_read]

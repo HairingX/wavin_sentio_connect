@@ -3,12 +3,15 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping
-from enum import IntEnum, StrEnum
+from dataclasses import dataclass
+from enum import IntEnum
+from typing import Any
 from types import MappingProxyType
 
 from modbus_event_connect import (
     DataType,
     Instances,
+    Key,
     Labels,
     Limits,
     Model,
@@ -21,7 +24,13 @@ from modbus_event_connect import (
     Unit,
     WriteKind,
 )
-from modbus_event_connect.modbus import DiscreteInput, HoldingRegister, InputRegister, ModbusOptions, plain
+from modbus_event_connect.modbus import (
+    DiscreteInput,
+    HoldingRegister,
+    InputRegister,
+    ModbusOptions,
+    plain,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -68,10 +77,7 @@ class RoomState(IntEnum):
 
 
 class BlockingSource(IntEnum):
-    """Values of the blocking-source registers.
-
-    Kept as plain integers, since an unknown code is still a real reading.
-    """
+    """Values of the blocking-source registers."""
     NONE = 0
     UNKNOWN = 1
     CONTACT = 2
@@ -120,102 +126,139 @@ class PeripheralType(IntEnum):
 
 # ==================================================================================== keys
 #
-# Every point has its key in one of these enums. A location point's is its whole key; a room's
-# or a peripheral's becomes one through `room_key` or `peripheral_key`. The key strings never change.
+# Every point has its key here, with the type of its value. A location point's key is its
+# whole key; a room's or a peripheral's becomes one through `room_key` or `peripheral_key`.
+# The key strings never change.
 
 
-class LocationPointKey(StrEnum):
-    """The key of each point the location has; it is the whole key."""
-    DATAPOINT_MAJOR = "datapoint_major"
-    DATAPOINT_MINOR = "datapoint_minor"
-    DEVICE_TYPE = "device_type"
-    HARDWARE_MAJOR = "hardware_major"
-    SOFTWARE_MAJOR = "software_major"
-    SOFTWARE_MINOR = "software_minor"
-    SERIAL_NUMBER_PREFIX = "serial_number_prefix"
-    SERIAL_NUMBER = "serial_number"
-    HEATING_COOLING_MODE = "heating_cooling_mode"
-    SETPOINT_MAJOR = "setpoint_major"
-    SETPOINT_MINOR = "setpoint_minor"
-    MODBUS_MODE = "modbus_mode"
-    MODBUS_PASSWORD = "modbus_password"
-    LOCATION_NAME = "location_name"
-    STANDBY_ENABLE = "standby_enable"
-    VACATION_ENABLE = "vacation_enable"
-    DATETIME_UNIX = "datetime_unix"
-    DAYLIGHT_SAVING_ENABLE = "daylight_saving_enable"
-    TEMP_OUTDOOR_COOLING_MIN = "temp_outdoor_cooling_min"
-    TEMP_OUTDOOR_HEATING_MAX = "temp_outdoor_heating_max"
-    UPDATE_MODE = "update_mode"
-    HEATING_COOLING_MODE_BMS_OVERRIDE = "heating_cooling_mode_bms_override"
-    TIMEZONE = "timezone"
-    SYSTEM_WARNING = "system_warning"
-    SYSTEM_ERROR = "system_error"
+class RoomLock(IntEnum):
+    """Values of a room's lock register; no other value can be written."""
+    LOCKED = 8
+    HOTEL = 16
+    UNLOCKED = 32
 
 
-class RoomPointKey(StrEnum):
+@dataclass(frozen=True)
+class PointKey[T]:
+    """The key of a point every room, or every peripheral slot, has, and the type of its value."""
+    name: str
+    type: type[T]
+
+
+def _members[K](namespace: type, kind: type[K]) -> tuple[K, ...]:
+    return tuple(value for value in vars(namespace).values() if isinstance(value, kind))
+
+
+class LocationPointKey:
+    """The key of each point the location has."""
+    DATAPOINT_MAJOR = Key("datapoint_major", int)
+    DATAPOINT_MINOR = Key("datapoint_minor", int)
+    DEVICE_TYPE = Key("device_type", int)
+    HARDWARE_MAJOR = Key("hardware_major", int)
+    SOFTWARE_MAJOR = Key("software_major", int)
+    SOFTWARE_MINOR = Key("software_minor", int)
+    SERIAL_NUMBER_PREFIX = Key("serial_number_prefix", int)
+    SERIAL_NUMBER = Key("serial_number", int)
+    HEATING_COOLING_MODE = Key("heating_cooling_mode", int)
+    SETPOINT_MAJOR = Key("setpoint_major", int)
+    SETPOINT_MINOR = Key("setpoint_minor", int)
+    MODBUS_MODE = Key("modbus_mode", int)
+    MODBUS_PASSWORD = Key("modbus_password", int)
+    LOCATION_NAME = Key("location_name", str)
+    STANDBY_ENABLE = Key("standby_enable", int)
+    VACATION_ENABLE = Key("vacation_enable", int)
+    DATETIME_UNIX = Key("datetime_unix", int)
+    DAYLIGHT_SAVING_ENABLE = Key("daylight_saving_enable", int)
+    TEMP_OUTDOOR_COOLING_MIN = Key("temp_outdoor_cooling_min", float)
+    TEMP_OUTDOOR_HEATING_MAX = Key("temp_outdoor_heating_max", float)
+    UPDATE_MODE = Key("update_mode", int)
+    HEATING_COOLING_MODE_BMS_OVERRIDE = Key("heating_cooling_mode_bms_override", int)
+    TIMEZONE = Key("timezone", int)
+    SYSTEM_WARNING = Key("system_warning", bool)
+    SYSTEM_ERROR = Key("system_error", bool)
+
+    @classmethod
+    def all(cls) -> tuple[Key[Any], ...]:
+        """Every key, in the order declared."""
+        kind: type[Key[Any]] = Key
+        return _members(cls, kind)
+
+
+class RoomPointKey:
     """The key of each point within a room; `room_key` makes it the point's key."""
-    TEMP_AIR_TARGET_ACTIVE = "temp_air_target_active"
-    STATE = "state"
-    BLOCKING_SOURCE = "blocking_source"
-    TEMP_AIR_CURRENT = "temp_air_current"
-    TEMP_FLOOR_CURRENT = "temp_floor_current"
-    HUMIDITY_CURRENT = "humidity_current"
-    DEW_POINT_CURRENT = "dew_point_current"
-    ASSOCIATED_RADIATORS = "associated_radiators"
-    ASSOCIATED_UFHC = "associated_ufhc"
-    ASSOCIATED_DRYING = "associated_drying"
-    ASSOCIATED_THERMAL_INTEGRATION = "associated_thermal_integration"
-    ASSOCIATED_VENTILATION = "associated_ventilation"
-    RADIATORS_STATE = "radiators_state"
-    UFHC_STATE = "ufhc_state"
-    DRYING_STATE = "drying_state"
-    THERMAL_INTEGRATION_STATE = "thermal_integration_state"
-    VENTILATION_STATE = "ventilation_state"
-    BLOCKING_SOURCE_RADIATORS = "blocking_source_radiators"
-    BLOCKING_SOURCE_UFHC = "blocking_source_ufhc"
-    BLOCKING_SOURCE_DRYING = "blocking_source_drying"
-    BLOCKING_SOURCE_THERMAL_INTEGRATION = "blocking_source_thermal_integration"
-    BLOCKING_SOURCE_VENTILATION = "blocking_source_ventilation"
-    TYPE = "type"
-    ASSOCIATED_HEATING_SOURCE = "associated_heating_source"
-    NAME = "name"
-    MODE = "mode"
-    MODE_OVERRIDE = "mode_override"
-    TEMP_AIR_TARGET = "temp_air_target"
-    LOCK = "lock"
-    TEMP_STANDBY = "temp_standby"
-    TEMP_VACATION = "temp_vacation"
-    EXCLUDE_FROM_VACATION = "exclude_from_vacation"
-    ADAPTIVE_ENABLE = "adaptive_enable"
-    THERMAL_INTEGRATION_HEATING_OFFSET = "thermal_integration_heating_offset"
-    THERMAL_INTEGRATION_HYSTERESIS = "thermal_integration_hysteresis"
-    HUMIDITY_THRESHOLD_HEATING = "humidity_threshold_heating"
-    HUMIDITY_THRESHOLD_COOLING = "humidity_threshold_cooling"
-    HUMIDITY_HYSTERESIS = "humidity_hysteresis"
-    DRYING_COOLING_WATER_OFFSET = "drying_cooling_water_offset"
-    DRYING_COOLING_WATER_OFFSET_HYSTERESIS = "drying_cooling_water_offset_hysteresis"
-    DEW_POINT_COOLING_THRESHOLD = "dew_point_cooling_threshold"
-    DEW_POINT_COOLING_THRESHOLD_HYSTERESIS = "dew_point_cooling_threshold_hysteresis"
-    HUMIDITY_HIGH_ALARM_LIMIT = "humidity_high_alarm_limit"
-    TEMP_PRESET = "temp_preset"
-    WARNING = "warning"
-    ERROR = "error"
-    LOW_BATTERY = "low_battery"
-    PERIPHERAL_LOST = "peripheral_lost"
+    TEMP_AIR_TARGET_ACTIVE = PointKey("temp_air_target_active", float)
+    STATE = PointKey("state", RoomState)
+    BLOCKING_SOURCE = PointKey("blocking_source", BlockingSource)
+    TEMP_AIR_CURRENT = PointKey("temp_air_current", float)
+    TEMP_FLOOR_CURRENT = PointKey("temp_floor_current", float)
+    HUMIDITY_CURRENT = PointKey("humidity_current", float)
+    DEW_POINT_CURRENT = PointKey("dew_point_current", float)
+    ASSOCIATED_RADIATORS = PointKey("associated_radiators", int)
+    ASSOCIATED_UFHC = PointKey("associated_ufhc", int)
+    ASSOCIATED_DRYING = PointKey("associated_drying", int)
+    ASSOCIATED_THERMAL_INTEGRATION = PointKey("associated_thermal_integration", int)
+    ASSOCIATED_VENTILATION = PointKey("associated_ventilation", int)
+    RADIATORS_STATE = PointKey("radiators_state", RoomState)
+    UFHC_STATE = PointKey("ufhc_state", RoomState)
+    DRYING_STATE = PointKey("drying_state", RoomState)
+    THERMAL_INTEGRATION_STATE = PointKey("thermal_integration_state", RoomState)
+    VENTILATION_STATE = PointKey("ventilation_state", RoomState)
+    BLOCKING_SOURCE_RADIATORS = PointKey("blocking_source_radiators", BlockingSource)
+    BLOCKING_SOURCE_UFHC = PointKey("blocking_source_ufhc", BlockingSource)
+    BLOCKING_SOURCE_DRYING = PointKey("blocking_source_drying", BlockingSource)
+    BLOCKING_SOURCE_THERMAL_INTEGRATION = PointKey("blocking_source_thermal_integration", BlockingSource)
+    BLOCKING_SOURCE_VENTILATION = PointKey("blocking_source_ventilation", BlockingSource)
+    TYPE = PointKey("type", RoomType)
+    ASSOCIATED_HEATING_SOURCE = PointKey("associated_heating_source", int)
+    NAME = PointKey("name", str)
+    MODE = PointKey("mode", int)
+    MODE_OVERRIDE = PointKey("mode_override", int)
+    TEMP_AIR_TARGET = PointKey("temp_air_target", float)
+    LOCK = PointKey("lock", RoomLock)
+    TEMP_STANDBY = PointKey("temp_standby", float)
+    TEMP_VACATION = PointKey("temp_vacation", float)
+    EXCLUDE_FROM_VACATION = PointKey("exclude_from_vacation", int)
+    ADAPTIVE_ENABLE = PointKey("adaptive_enable", int)
+    THERMAL_INTEGRATION_HEATING_OFFSET = PointKey("thermal_integration_heating_offset", float)
+    THERMAL_INTEGRATION_HYSTERESIS = PointKey("thermal_integration_hysteresis", float)
+    HUMIDITY_THRESHOLD_HEATING = PointKey("humidity_threshold_heating", float)
+    HUMIDITY_THRESHOLD_COOLING = PointKey("humidity_threshold_cooling", float)
+    HUMIDITY_HYSTERESIS = PointKey("humidity_hysteresis", float)
+    DRYING_COOLING_WATER_OFFSET = PointKey("drying_cooling_water_offset", float)
+    DRYING_COOLING_WATER_OFFSET_HYSTERESIS = PointKey("drying_cooling_water_offset_hysteresis", float)
+    DEW_POINT_COOLING_THRESHOLD = PointKey("dew_point_cooling_threshold", float)
+    DEW_POINT_COOLING_THRESHOLD_HYSTERESIS = PointKey("dew_point_cooling_threshold_hysteresis", float)
+    HUMIDITY_HIGH_ALARM_LIMIT = PointKey("humidity_high_alarm_limit", float)
+    TEMP_PRESET = PointKey("temp_preset", int)
+    WARNING = PointKey("warning", bool)
+    ERROR = PointKey("error", bool)
+    LOW_BATTERY = PointKey("low_battery", bool)
+    PERIPHERAL_LOST = PointKey("peripheral_lost", bool)
+
+    @classmethod
+    def all(cls) -> tuple[PointKey[Any], ...]:
+        """Every key, in the order declared."""
+        kind: type[PointKey[Any]] = PointKey
+        return _members(cls, kind)
 
 
-class PeripheralPointKey(StrEnum):
+class PeripheralPointKey:
     """The key of each point within a peripheral slot; `peripheral_key` makes it the point's key."""
-    TYPE = "type"
-    SERIAL_NUMBER = "serial_number"
-    OWNER = "owner"
-    SIGNAL_STRENGTH = "signal_strength"
-    NAME = "name"
-    WARNING = "warning"
-    ERROR = "error"
-    LOW_BATTERY = "low_battery"
-    LOST = "lost"
+    TYPE = PointKey("type", PeripheralType)
+    SERIAL_NUMBER = PointKey("serial_number", int)
+    OWNER = PointKey("owner", int)
+    SIGNAL_STRENGTH = PointKey("signal_strength", int)
+    NAME = PointKey("name", str)
+    WARNING = PointKey("warning", bool)
+    ERROR = PointKey("error", bool)
+    LOW_BATTERY = PointKey("low_battery", bool)
+    LOST = PointKey("lost", bool)
+
+    @classmethod
+    def all(cls) -> tuple[PointKey[Any], ...]:
+        """Every key, in the order declared."""
+        kind: type[PointKey[Any]] = PointKey
+        return _members(cls, kind)
 
 
 ROOM = "room"
@@ -224,26 +267,27 @@ PERIPHERAL = "peripheral"
 """The instance label of a peripheral slot: its number, 1 to PERIPHERAL_COUNT."""
 
 
-def room_key(room: int, point: RoomPointKey) -> str:
+def room_key[T](room: int, point: PointKey[T]) -> Key[T]:
     """The key of `point` in room `room`: `room_key(4, RoomPointKey.STATE)` is "room_4_state"."""
-    return f"room_{room}_{point}"
+    return Key(f"room_{room}_{point.name}", point.type)
 
 
-def peripheral_key(slot: int, point: PeripheralPointKey) -> str:
+def peripheral_key[T](slot: int, point: PointKey[T]) -> Key[T]:
     """The key of `point` in slot `slot`: `peripheral_key(2, PeripheralPointKey.NAME)` is "peripheral_2_name"."""
-    return f"peripheral_{slot}_{point}"
+    return Key(f"peripheral_{slot}_{point.name}", point.type)
 
 
 UNITS = frozenset({Unit.CELSIUS, Unit.PERCENT, Unit.SECONDS})
 """Every unit a Sentio value has."""
 
-ALARM = Labels(kind="alarm")
+_ALARM_KIND = "alarm"
+ALARM = Labels(kind=_ALARM_KIND)
 """Every alarm and warning bit."""
 
 SENSOR = "sensor"
 """The label kind of a room's measurements, which a room without a sensor does not have."""
 
-ROOM_FUNCTIONS: Mapping[str, RoomPointKey] = MappingProxyType({
+ROOM_FUNCTIONS: Mapping[str, PointKey[int]] = MappingProxyType({
     "radiators": RoomPointKey.ASSOCIATED_RADIATORS,
     "ufhc": RoomPointKey.ASSOCIATED_UFHC,
     "drying": RoomPointKey.ASSOCIATED_DRYING,
@@ -279,51 +323,47 @@ def rereads(group: str, **where: int) -> Refresh:
     return Refresh(Labels(group=group, **where), after=REREAD_AFTER_WRITE)
 
 
-ROOM_LOCK = DataType.enum({8: "locked", 16: "hotel", 32: "unlocked"})
-"""A closed set: only 8, 16 and 32 are valid lock modes."""
-
-
 # ================================================================================ encodings
 #
 # How the manual's value types map to points, and which raw value means "no reading".
 
-def _u8(key: str, read: InputRegister | HoldingRegister, *, write: HoldingRegister | None = None, maximum: int = 254,
-        poll_rate: PollRate = PollRate.SLOW, unit: Unit | None = None, on_write: Refresh | None = None,
-        labels: Mapping[str, str] | None = None) -> Point:
+def _u8[T](key: Key[T], read: InputRegister | HoldingRegister, *, write: HoldingRegister | None = None,
+           maximum: int = 254, poll_rate: PollRate = PollRate.SLOW, unit: Unit | None = None,
+           on_write: Refresh | None = None, labels: Mapping[str, str] | None = None) -> Point[T]:
     """val_u1: 0 to `maximum`; anything above - 255 in particular - means no value."""
     return Point(key, read=read, write=write, data_type=DataType.UINT16, raw_range=(0, maximum), poll_rate=poll_rate,
                  unit=unit, limits=Limits(0, maximum, step=1) if write is not None else None, on_write=on_write,
                  labels=labels or {})
 
 
-def _u16(key: str, read: InputRegister | HoldingRegister | None, *, write: HoldingRegister | None = None,
-         poll_rate: PollRate = PollRate.SLOW, write_kind: WriteKind = WriteKind.STATE) -> Point:
+def _u16[T](key: Key[T], read: InputRegister | HoldingRegister | None, *, write: HoldingRegister | None = None,
+            poll_rate: PollRate = PollRate.SLOW, write_kind: WriteKind = WriteKind.STATE) -> Point[T]:
     """val_u2: 0xFFFF means no value."""
     return Point(key, read=read, write=write, data_type=DataType.UINT16, poll_rate=poll_rate, write_kind=write_kind,
                  no_data=(0xFFFF,) if read is not None else ())
 
 
-def _u32(key: str, read: InputRegister | HoldingRegister, *, write: HoldingRegister | None = None,
-         poll_rate: PollRate = PollRate.SLOW, unit: Unit | None = None) -> Point:
+def _u32(key: Key[int], read: InputRegister | HoldingRegister, *, write: HoldingRegister | None = None,
+         poll_rate: PollRate = PollRate.SLOW, unit: Unit | None = None) -> Point[int]:
     """val_u4: 0xFFFFFFFF means no value."""
     return Point(key, read=read, write=write, data_type=DataType.UINT32, no_data=(0xFFFFFFFF,),
                  poll_rate=poll_rate, unit=unit)
 
 
-def _fp100(key: str, read: InputRegister | HoldingRegister, *, write: HoldingRegister | None = None,
+def _fp100(key: Key[float], read: InputRegister | HoldingRegister, *, write: HoldingRegister | None = None,
            poll_rate: PollRate = PollRate.SLOW, unit: Unit | None = Unit.CELSIUS, on_write: Refresh | None = None,
-           labels: Mapping[str, str] | None = None) -> Point:
+           labels: Mapping[str, str] | None = None) -> Point[float]:
     """val_d2_fp100: signed hundredths; 0x7FFF means no reading."""
     return Point(key, read=read, write=write, data_type=DataType.INT16, scale=0.01, no_data=(0x7FFF,),
                  poll_rate=poll_rate, unit=unit, on_write=on_write, labels=labels or {})
 
 
-def _alarm(key: str, read: DiscreteInput) -> Point:
+def _alarm(key: Key[bool], read: DiscreteInput) -> Point[bool]:
     """An alarm bit: read rarely by itself, and at once whenever the system's summary changes."""
-    return Point(key, read=read, data_type=DataType.BOOL, poll_rate=PollRate.RARE, labels={"kind": "alarm"})
+    return Point(key, read=read, data_type=DataType.BOOL, poll_rate=PollRate.RARE, labels={"kind": _ALARM_KIND})
 
 
-def _summary(key: str, read: DiscreteInput) -> Point:
+def _summary(key: Key[bool], read: DiscreteInput) -> Point[bool]:
     """One of the system's two aggregated alarm bits.
 
     Polled even when nobody asks for it, since its change is what sets off reading every
@@ -333,7 +373,7 @@ def _summary(key: str, read: DiscreteInput) -> Point:
                  on_change=Refresh(ALARM))
 
 
-def _text(key: str, read: HoldingRegister, *, write: HoldingRegister | None = None) -> Point:
+def _text(key: Key[str], read: HoldingRegister, *, write: HoldingRegister | None = None) -> Point[str]:
     """val_utf8: 32 bytes over 16 registers, NUL terminated, no length prefix."""
     return Point(key, read=read, write=write, data_type=DataType.string(16), poll_rate=PollRate.STATIC)
 
@@ -377,28 +417,29 @@ LOCATION = [
 ]
 
 
-def room(n: int) -> list[Point]:
+def room(n: int) -> list[Point[Any]]:
     """One room's points."""
     base = room_base(n)
 
-    def state(point: RoomPointKey, offset: int, function: str | None = None) -> Point:
+    def state[T](point: PointKey[T], offset: int, function: str | None = None) -> Point[T]:
         return _u8(room_key(n, point), InputRegister(base + offset), poll_rate=PollRate.FAST,
                    labels={"function": function} if function else None)
 
-    def sensor(point: RoomPointKey, offset: int, unit: Unit = Unit.CELSIUS) -> Point:
+    def sensor(point: PointKey[float], offset: int, unit: Unit = Unit.CELSIUS) -> Point[float]:
         return _fp100(room_key(n, point), InputRegister(base + offset), poll_rate=PollRate.MEDIUM, unit=unit,
                       labels={"kind": SENSOR})
 
-    def associated(point: RoomPointKey, offset: int) -> Point:
+    def associated(point: PointKey[int], offset: int) -> Point[int]:
         return _u8(room_key(n, point), InputRegister(base + offset), poll_rate=PollRate.STATIC)
 
     retarget = rereads(ROOM_TARGET, room=n)
 
-    def setting(point: RoomPointKey, offset: int, unit: Unit = Unit.CELSIUS, on_write: Refresh | None = None) -> Point:
+    def setting(point: PointKey[float], offset: int, unit: Unit = Unit.CELSIUS,
+                on_write: Refresh | None = None) -> Point[float]:
         return _fp100(room_key(n, point), HoldingRegister(base + offset), write=HoldingRegister(base + offset),
                       unit=unit, on_write=on_write)
 
-    def switch(point: RoomPointKey, offset: int, maximum: int, on_write: Refresh | None = None) -> Point:
+    def switch(point: PointKey[int], offset: int, maximum: int, on_write: Refresh | None = None) -> Point[int]:
         return _u8(room_key(n, point), HoldingRegister(base + offset), write=HoldingRegister(base + offset),
                    maximum=maximum, on_write=on_write)
 
@@ -437,8 +478,7 @@ def room(n: int) -> list[Point]:
         switch(RoomPointKey.MODE, 17, 1, on_write=retarget),
         switch(RoomPointKey.MODE_OVERRIDE, 18, 3, on_write=retarget),
         setting(RoomPointKey.TEMP_AIR_TARGET, 19, on_write=retarget),
-        Point(room_key(n, RoomPointKey.LOCK), read=HoldingRegister(base + 20), write=HoldingRegister(base + 20),
-              data_type=ROOM_LOCK),
+        Point(room_key(n, RoomPointKey.LOCK), read=HoldingRegister(base + 20), write=HoldingRegister(base + 20)),
         setting(RoomPointKey.TEMP_STANDBY, 21, on_write=retarget),
         setting(RoomPointKey.TEMP_VACATION, 22, on_write=retarget),
         switch(RoomPointKey.EXCLUDE_FROM_VACATION, 23, 1, on_write=retarget),
@@ -463,23 +503,19 @@ def room(n: int) -> list[Point]:
     ]
 
 
-def peripheral(slot: int) -> list[Point]:
+def peripheral(slot: int) -> list[Point[Any]]:
     """One peripheral slot's points."""
     base = peripheral_base(slot)
-
-    def key(point: PeripheralPointKey) -> str:
-        return peripheral_key(slot, point)
-
     return [
-        _u16(key(PeripheralPointKey.TYPE), InputRegister(base + 1), poll_rate=PollRate.STATIC),
-        _u32(key(PeripheralPointKey.SERIAL_NUMBER), InputRegister(base + 2), poll_rate=PollRate.STATIC),
-        _u16(key(PeripheralPointKey.OWNER), InputRegister(base + 4), poll_rate=PollRate.STATIC),
-        _u8(key(PeripheralPointKey.SIGNAL_STRENGTH), InputRegister(base + 5), poll_rate=PollRate.RARE),
-        _text(key(PeripheralPointKey.NAME), HoldingRegister(base + 1)),
-        _alarm(key(PeripheralPointKey.WARNING), DiscreteInput(base + 1)),
-        _alarm(key(PeripheralPointKey.ERROR), DiscreteInput(base + 2)),
-        _alarm(key(PeripheralPointKey.LOW_BATTERY), DiscreteInput(base + 3)),
-        _alarm(key(PeripheralPointKey.LOST), DiscreteInput(base + 4)),
+        _u16(peripheral_key(slot, PeripheralPointKey.TYPE), InputRegister(base + 1), poll_rate=PollRate.STATIC),
+        _u32(peripheral_key(slot, PeripheralPointKey.SERIAL_NUMBER), InputRegister(base + 2), poll_rate=PollRate.STATIC),
+        _u16(peripheral_key(slot, PeripheralPointKey.OWNER), InputRegister(base + 4), poll_rate=PollRate.STATIC),
+        _u8(peripheral_key(slot, PeripheralPointKey.SIGNAL_STRENGTH), InputRegister(base + 5), poll_rate=PollRate.RARE),
+        _text(peripheral_key(slot, PeripheralPointKey.NAME), HoldingRegister(base + 1)),
+        _alarm(peripheral_key(slot, PeripheralPointKey.WARNING), DiscreteInput(base + 1)),
+        _alarm(peripheral_key(slot, PeripheralPointKey.ERROR), DiscreteInput(base + 2)),
+        _alarm(peripheral_key(slot, PeripheralPointKey.LOW_BATTERY), DiscreteInput(base + 3)),
+        _alarm(peripheral_key(slot, PeripheralPointKey.LOST), DiscreteInput(base + 4)),
     ]
 
 

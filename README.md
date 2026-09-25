@@ -28,7 +28,7 @@ The controller restarts afterwards. It uses DHCP; its hostname is
 
 ```python
 import asyncio
-from wavin_sentio_connect import create_client, rooms
+from wavin_sentio_connect import RoomPointKey, create_client, room_key, rooms
 
 def on_change(key, old, new):
     print(f"{key}: {new.value} ({new.quality.name})")
@@ -39,7 +39,7 @@ async def main():
 
     for room in rooms(client):
         print(room.number, room.name, "dummy" if room.is_dummy else "")
-        client.subscribe(f"room_{room.number}_temp_air_current", on_change)
+        client.subscribe(room_key(room.number, RoomPointKey.TEMP_AIR_CURRENT), on_change)
 
     while True:                         # you own the clock; the library owns the plan
         await client.poll()      # reads only what is due - free when nothing is
@@ -91,11 +91,13 @@ Only what something wants is read: a subscriber, or `client.set_polling(key)`.
 ## Writing
 
 ```python
-await client.write("room_1_temp_air_target", 21.5)
-await client.write("room_1_lock", "hotel")        # locked / hotel / unlocked
+await client.write(room_key(1, RoomPointKey.TEMP_AIR_TARGET), 21.5)
+await client.write(room_key(1, RoomPointKey.LOCK), RoomLock.HOTEL)   # LOCKED / HOTEL / UNLOCKED
 ```
 
-- A value is checked before anything is sent: its type, its range, and the controller's
+- A value of the wrong type is a type error before the program runs: the lock takes a
+  `RoomLock`, a temperature a `float`.
+- A value is also checked before anything is sent: its range, its states, and the controller's
   "no reading" sentinel, which could never be read back.
 - Writes are sent in order. Tapping + five times sends the first value and the last, not all
   five.
@@ -143,8 +145,9 @@ owns no timer: the application calls `poll()` from its own loop.
 
 ## Keys and addressing
 
-Every point has its key in `LocationPointKey`, `RoomPointKey` or `PeripheralPointKey`. A
-location point's is its whole key; a room's or a peripheral's becomes one with the instance:
+Every point has its key in `LocationPointKey`, `RoomPointKey` or `PeripheralPointKey`, with the
+type of its value. A location point's is its whole key; a room's or a peripheral's becomes one
+with the instance:
 
 ```python
 from wavin_sentio_connect import ROOM, LocationPointKey, RoomPointKey, room_key
@@ -152,11 +155,16 @@ from wavin_sentio_connect import ROOM, LocationPointKey, RoomPointKey, room_key
 client.value(LocationPointKey.VACATION_ENABLE)               # key "vacation_enable"
 for n in client.instances(ROOM):                             # the rooms this installation has
     client.value(room_key(n, RoomPointKey.TEMP_AIR_CURRENT))  # key "room_4_temp_air_current"
+    client.value(room_key(n, RoomPointKey.STATE))             # a RoomState, such as HEATING
 ```
 
 A room point's key is the same in every room, so code that handles
-`RoomPointKey.TEMP_AIR_CURRENT` once handles it in all of them. `UNITS` is every unit a Sentio
-point has. Key strings never change; new points only add keys.
+`RoomPointKey.TEMP_AIR_CURRENT` once handles it in all of them; `RoomPointKey.all()` lists them.
+`UNITS` is every unit a Sentio point has. Key strings never change; new points only add keys.
+
+A state reads as its member of `RoomState`, `BlockingSource`, `RoomType`, `RoomLock` or
+`PeripheralType`. A number the manual does not name reads as `NO_DATA`, and the value's `.raw`
+holds the number the controller sent.
 
 The model is in [`_model.py`](src/wavin_sentio_connect/_model.py); every key is declared there
 with its address and encoding.

@@ -16,14 +16,22 @@ NOTHING HERE WRITES TO THE CONTROLLER: the client is created read-only.
 from collections import Counter
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
+from typing import Any
 
 import pytest
 import pytest_asyncio
-from modbus_event_connect import Client, DataValue, Quality, ReadOnlyError, Unit
+from modbus_event_connect import Client, DataValue, Key, Quality, ReadOnlyError, Unit
 from modbus_event_connect.modbus import FunctionCode, ModbusDevice, ModbusTcpConnection, Request
 
 from conftest import live_or_skip, live_setting
-from src.wavin_sentio_connect import SENTIO, RoomPointKey, peripherals, room_key, rooms
+from src.wavin_sentio_connect import (
+    SENTIO,
+    LocationPointKey,
+    RoomPointKey,
+    peripherals,
+    room_key,
+    rooms,
+)
 
 HOST = live_setting("SENTIO_HOST")
 PORT = int(live_setting("SENTIO_PORT") or "502")
@@ -58,7 +66,7 @@ async def live() -> AsyncGenerator[Live, None]:
     await client.disconnect()
 
 
-def _good(client: Client, key: str) -> object:
+def _good[T](client: Client, key: Key[T]) -> T | None:
     current = client.value(key)
     assert current is not None and current.quality is Quality.GOOD, f"{key}: {current}"
     return current.value
@@ -78,20 +86,21 @@ async def test_a_write_is_refused_before_it_reaches_the_controller(live: Live) -
 async def test_connects_and_identifies(live: Live) -> None:
     client = live.client
     print("\n--- controller ---")
-    for key in ("device_type", "datapoint_major", "datapoint_minor", "software_major",
-                "software_minor", "hardware_major", "heating_cooling_mode", "modbus_mode"):
+    for key in (LocationPointKey.DEVICE_TYPE, LocationPointKey.DATAPOINT_MAJOR, LocationPointKey.DATAPOINT_MINOR,
+                LocationPointKey.SOFTWARE_MAJOR, LocationPointKey.SOFTWARE_MINOR, LocationPointKey.HARDWARE_MAJOR,
+                LocationPointKey.HEATING_COOLING_MODE, LocationPointKey.MODBUS_MODE):
         print(f"  {key:22} {client.value(key)}")
-    assert _good(client, "device_type") is not None
+    assert _good(client, LocationPointKey.DEVICE_TYPE) is not None
 
 
 async def test_the_manuals_numbers_are_the_addresses(live: Live) -> None:
     """The manual documents two constants. Off by one, and these would be other registers."""
-    assert _good(live.client, "datapoint_major") == 3
-    assert _good(live.client, "serial_number_prefix") == 1530
+    assert _good(live.client, LocationPointKey.DATAPOINT_MAJOR) == 3
+    assert _good(live.client, LocationPointKey.SERIAL_NUMBER_PREFIX) == 1530
 
 
 async def test_text_decodes_without_a_length_prefix(live: Live) -> None:
-    name = _good(live.client, "location_name")
+    name = _good(live.client, LocationPointKey.LOCATION_NAME)
     print(f"\n  location name: {name!r}")
     assert isinstance(name, str)
 
@@ -144,9 +153,9 @@ async def test_the_paired_peripherals_are_found(live: Live) -> None:
 
 async def test_every_subscriber_hears_its_value(live: Live) -> None:
     client = live.client
-    heard: dict[str, DataValue] = {}
+    heard: dict[str, DataValue[Any]] = {}
 
-    def listen(key: str, old: DataValue | None, new: DataValue) -> None:
+    def listen(key: str, old: DataValue[Any] | None, new: DataValue[Any]) -> None:
         heard[key] = new
     unsubscribers = [client.subscribe(key, listen) for key in client.points if client.can_read(key)]
     for unsubscribe in unsubscribers:

@@ -3,17 +3,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from modbus_event_connect import Client, Clock
+from modbus_event_connect import Client, Clock, Key
 from modbus_event_connect.modbus import ModbusConnection, ModbusDevice
 
 from ._model import (
     PERIPHERAL,
     ROOM,
     SENTIO,
-    PeripheralType,
     PeripheralPointKey,
-    RoomType,
+    PeripheralType,
     RoomPointKey,
+    RoomType,
     peripheral_key,
     room_key,
 )
@@ -61,58 +61,36 @@ class SentioPeripheral:
     slot: int
     """1-64; not stable across relearns - use `serial_number` to recognise a device."""
     name: str
-    type: int | None
-    """Compare with PeripheralType. None if the controller reported no type."""
+    type: PeripheralType | None
+    """None if the controller reported no type, or one this map does not name."""
     serial_number: int | None
     owner: int | None
     """0 = the location itself, 1-16 = that room."""
 
     @property
     def model(self) -> str:
-        """A readable model name, or the raw type when this map does not know it."""
-        if self.type is None:
-            return "unknown"
-        try:
-            return PeripheralType(self.type).name.replace("_", "-")
-        except ValueError:
-            return f"type {self.type}"
+        """A readable model name, such as "RT-250", or "unknown"."""
+        return self.type.name.replace("_", "-") if self.type is not None else "unknown"
 
 
 def rooms(client: Client) -> list[SentioRoom]:
     """The rooms this installation has, from values read during connect()."""
-    found: list[SentioRoom] = []
-    for n in client.instances(ROOM):
-        name = client.value(room_key(n, RoomPointKey.NAME))
-        room_type = client.value(room_key(n, RoomPointKey.TYPE))
-        found.append(SentioRoom(
-            number=n,
-            name=name.value if name is not None and isinstance(name.value, str) else "",
-            is_dummy=room_type is not None and room_type.value == RoomType.DUMMY,
-        ))
-    return found
+    return [SentioRoom(number=n,
+                       name=_value(client, room_key(n, RoomPointKey.NAME)) or "",
+                       is_dummy=_value(client, room_key(n, RoomPointKey.TYPE)) is RoomType.DUMMY)
+            for n in client.instances(ROOM)]
 
 
 def peripherals(client: Client) -> list[SentioPeripheral]:
     """The peripherals paired with this installation, from values read during connect()."""
-    found: list[SentioPeripheral] = []
-    for slot in client.instances(PERIPHERAL):
-        found.append(SentioPeripheral(
-            slot=slot,
-            name=_text(client, peripheral_key(slot, PeripheralPointKey.NAME)),
-            type=_integer(client, peripheral_key(slot, PeripheralPointKey.TYPE)),
-            serial_number=_integer(client, peripheral_key(slot, PeripheralPointKey.SERIAL_NUMBER)),
-            owner=_integer(client, peripheral_key(slot, PeripheralPointKey.OWNER)),
-        ))
-    return found
+    return [SentioPeripheral(slot=slot,
+                             name=_value(client, peripheral_key(slot, PeripheralPointKey.NAME)) or "",
+                             type=_value(client, peripheral_key(slot, PeripheralPointKey.TYPE)),
+                             serial_number=_value(client, peripheral_key(slot, PeripheralPointKey.SERIAL_NUMBER)),
+                             owner=_value(client, peripheral_key(slot, PeripheralPointKey.OWNER)))
+            for slot in client.instances(PERIPHERAL)]
 
 
-def _text(client: Client, key: str) -> str:
+def _value[T](client: Client, key: Key[T]) -> T | None:
     current = client.value(key)
-    return current.value if current is not None and isinstance(current.value, str) else ""
-
-
-def _integer(client: Client, key: str) -> int | None:
-    current = client.value(key)
-    if current is None or isinstance(current.value, bool) or not isinstance(current.value, int):
-        return None
-    return current.value
+    return current.value if current is not None else None
