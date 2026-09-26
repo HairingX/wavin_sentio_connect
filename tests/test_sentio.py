@@ -30,6 +30,7 @@ from modbus_event_connect.testing import (
 from wavin_sentio_connect import (
     SENTIO,
     UNITS,
+    DryingState,
     LocationPointKey,
     ModbusMode,
     PeripheralPointKey,
@@ -40,6 +41,7 @@ from wavin_sentio_connect import (
     RoomState,
     RoomType,
     TemperaturePreset,
+    VentilationState,
     _model as sentio_model,
     create_client_on,
     peripheral_key,
@@ -133,6 +135,22 @@ def test_every_key_names_the_type_its_point_holds() -> None:
     assert all(points[key].key.type is key.type for key in LocationPointKey.all())
     assert all(points[room_key(1, point)].key.type is point.type for point in RoomPointKey.all())
     assert all(points[peripheral_key(1, point)].key.type is point.type for point in PeripheralPointKey.all())
+
+
+@pytest.mark.parametrize(("point", "association", "offset", "raw", "state"), [
+    (RoomPointKey.DRYING_STATE, 14, 19, 2, DryingState.DRYING),
+    (RoomPointKey.DRYING_STATE, 14, 19, 3, DryingState.BLOCKED_DRYING),
+    (RoomPointKey.VENTILATION_STATE, 16, 21, 5, VentilationState.BOOST),
+    (RoomPointKey.VENTILATION_STATE, 16, 21, 6, VentilationState.BLOCKED),
+])
+def test_drying_and_ventilation_read_as_their_own_states(point: Any, association: int, offset: int, raw: int,
+                                                          state: Any) -> None:
+    unit = _installation()
+    unit.input_registers[room_base(1) + association] = 1
+    unit.input_registers[room_base(1) + offset] = raw
+    client, _ = _connected(unit=unit)
+    found = client.value(room_key(1, point))
+    assert found is not None and found.value is state
 
 
 def test_a_state_reads_as_its_member() -> None:

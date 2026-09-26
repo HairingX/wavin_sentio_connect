@@ -76,6 +76,27 @@ class RoomState(IntEnum):
     BLOCKED_COOLING = 5
 
 
+class DryingState(IntEnum):
+    """Values of a room's drying state register."""
+    NONE = 0
+    """Drying is not used in this room."""
+    IDLE = 1
+    DRYING = 2
+    BLOCKED_DRYING = 3
+
+
+class VentilationState(IntEnum):
+    """Values of a room's ventilation state register."""
+    NONE = 0
+    """Ventilation is not used in this room."""
+    STOPPED = 1
+    UNOCCUPIED = 2
+    ECONOMY = 3
+    COMFORT = 4
+    BOOST = 5
+    BLOCKED = 6
+
+
 class BlockingSource(IntEnum):
     """Values of the blocking-source registers."""
     NONE = 0
@@ -262,9 +283,9 @@ class RoomPointKey:
     ASSOCIATED_VENTILATION = PointKey("associated_ventilation", int)
     RADIATORS_STATE = PointKey("radiators_state", RoomState)
     UFHC_STATE = PointKey("ufhc_state", RoomState)
-    DRYING_STATE = PointKey("drying_state", RoomState)
+    DRYING_STATE = PointKey("drying_state", DryingState)
     THERMAL_INTEGRATION_STATE = PointKey("thermal_integration_state", RoomState)
-    VENTILATION_STATE = PointKey("ventilation_state", RoomState)
+    VENTILATION_STATE = PointKey("ventilation_state", VentilationState)
     BLOCKING_SOURCE_RADIATORS = PointKey("blocking_source_radiators", BlockingSource)
     BLOCKING_SOURCE_UFHC = PointKey("blocking_source_ufhc", BlockingSource)
     BLOCKING_SOURCE_DRYING = PointKey("blocking_source_drying", BlockingSource)
