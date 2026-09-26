@@ -323,6 +323,21 @@ class PeripheralPointKey:
         return _members(cls, kind)
 
 
+NOT_SUPPORTED: Mapping[PeripheralType, frozenset[PointKey[Any]]] = MappingProxyType({
+    PeripheralType.RT_201: frozenset({PeripheralPointKey.SIGNAL_STRENGTH}),
+    PeripheralType.RS_211: frozenset({PeripheralPointKey.SIGNAL_STRENGTH}),
+    PeripheralType.ET_210: frozenset({PeripheralPointKey.SIGNAL_STRENGTH}),
+    PeripheralType.LCD_200: frozenset({PeripheralPointKey.SIGNAL_STRENGTH}),
+    PeripheralType.EU_208_A: frozenset({PeripheralPointKey.SIGNAL_STRENGTH}),
+})
+"""The points a peripheral of each known type does not have, which a scan removes; a type not
+listed has every peripheral point.
+
+Sources: the manual's component table calls the RT-201, RS-211 and ET-210 wired. The LCD-200 is
+wired and the EU-208-A has no antenna, and a CCU-208 answers "no reading" for the signal strength
+of both.
+"""
+
 ROOM = "room"
 """The instance label of a room: its number, 1 to ROOM_COUNT."""
 PERIPHERAL = "peripheral"
@@ -635,16 +650,23 @@ async def scan_room(scan: Scan, n: int) -> None:
 
 
 async def scan_peripheral(scan: Scan, slot: int) -> None:
-    """Remove peripheral slot `slot` if nothing is paired in it.
+    """Remove peripheral slot `slot` if nothing is paired in it, and the points its type does
+    not have.
 
     The serial number and owner are read too, though never polled: another peripheral in the
     slot, or one moved to another room, then changes what this scan read, and the slot is read
     afresh.
     """
     kind = peripheral_key(slot, PeripheralPointKey.TYPE)
-    if (await scan.read((kind,)))[kind].quality is Quality.MISSING:
+    found = (await scan.read((kind,)))[kind]
+    if found.quality is Quality.MISSING:
         scan.set_available(Labels(peripheral=slot), False, reason="no peripheral in this slot")
         return
+    if found.quality is Quality.GOOD and isinstance(found.value, PeripheralType):
+        model = found.value.name.replace("_", "-")
+        for point in NOT_SUPPORTED.get(found.value, frozenset()):
+            scan.set_available((peripheral_key(slot, point),), False,
+                               reason=f"{model} has no {point.name.replace('_', ' ')}")
     await scan.read((peripheral_key(slot, PeripheralPointKey.SERIAL_NUMBER),
                      peripheral_key(slot, PeripheralPointKey.OWNER)))
 

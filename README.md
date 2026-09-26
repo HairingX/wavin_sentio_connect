@@ -52,9 +52,11 @@ When `connect()` returns, `client.points` holds exactly what this installation h
 was never set up is not there, so nothing is built for it. Nor is what the controller says a
 room lacks: a dummy room ("no thermostat or sensor installed") has no temperature, humidity or
 dew point, and a room not associated with radiators, underfloor heating, drying, thermal
-integration or ventilation has no state or blocking source for it. `rooms(client)` and
-`peripherals(client)` describe the installation from values already read, with no extra
-requests.
+integration or ventilation has no state or blocking source for it. Nor has a peripheral what
+its type is known to lack, as `NOT_SUPPORTED` lists: the manual's wired RT-201, RS-211 and
+ET-210, the LCD-200 and the EU-208-A have no signal strength.
+`rooms(client)` and `peripherals(client)` describe the installation from values already read,
+with no extra requests.
 
 When the installation changes, `poll()` finds it; nobody needs to connect again. What each scan
 read is read again at `PollRate.SCAN`, and where it has changed, only that part is scanned again:
@@ -73,7 +75,7 @@ Every value is a `DataValue`: `value`, `quality` and `timestamp` (UTC).
 | Quality | Meaning |
 |---|---|
 | `GOOD` | the controller answered with a valid value |
-| `NO_DATA` | it answered "no reading" - a missing sensor, an unconfigured limit, a wired peripheral's signal strength |
+| `NO_DATA` | it answered "no reading" - a missing sensor, an unconfigured limit |
 | `OFFLINE` | the register exists but what is behind it is not answering |
 | `STALE` | the last read failed; the value is the last good one |
 

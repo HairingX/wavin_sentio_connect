@@ -1,5 +1,6 @@
 """Wavin Sentio over Modbus TCP, built on modbus_event_connect."""
 from ._model import (
+    NOT_SUPPORTED,
     PERIPHERAL,
     ROOM,
     SENTIO,
@@ -39,6 +40,7 @@ __version__ = "0.2.0rc2"
 __all__ = [
     "DEFAULT_PORT",
     "DEFAULT_UNIT_ID",
+    "NOT_SUPPORTED",
     "PERIPHERAL",
     "ROOM",
     "SENTIO",

@@ -403,6 +403,28 @@ def test_a_peripheral_paired_later_is_found_while_polling() -> None:
     assert client.instances("peripheral") == (1, 2, 3)
 
 
+def test_a_wired_peripheral_has_no_signal_strength() -> None:
+    unit = _installation()
+    _pair(unit, 3, PeripheralType.EU_208_A, serial=333, owner=0)
+    client, _ = _connected(unit=unit)
+    assert not client.has(peripheral_key(3, PeripheralPointKey.SIGNAL_STRENGTH))
+    assert client.unavailable_reasons[peripheral_key(3, PeripheralPointKey.SIGNAL_STRENGTH)] ==         "EU-208-A has no signal strength"
+    assert client.has(peripheral_key(2, PeripheralPointKey.SIGNAL_STRENGTH)), "an RT-250 is wireless"
+
+
+def test_a_wireless_peripheral_replacing_a_wired_one_has_a_signal_strength() -> None:
+    def replace(unit: SimulatedModbusDevice) -> None:
+        _pair(unit, 2, PeripheralType.RT_250, serial=444, owner=1)
+    unit = _installation()
+    _pair(unit, 2, PeripheralType.RS_211, serial=222, owner=1)
+    client, gateway = _connected(unit=unit)
+    assert not client.has(peripheral_key(2, PeripheralPointKey.SIGNAL_STRENGTH))
+    replace(unit)
+    gateway.requests.clear()
+    asyncio.run(client.refresh(PollRate.SCAN))
+    assert client.has(peripheral_key(2, PeripheralPointKey.SIGNAL_STRENGTH))
+
+
 def test_another_peripheral_in_a_slot_is_read_afresh() -> None:
     client, _, _ = _changed(lambda unit: _pair(unit, 2, PeripheralType.RT_250, serial=999, owner=1))
     serial = client.value(peripheral_key(2, PeripheralPointKey.SERIAL_NUMBER))
