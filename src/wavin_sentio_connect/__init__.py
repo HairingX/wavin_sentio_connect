@@ -1,4 +1,41 @@
-"""Wavin Sentio over Modbus TCP, built on modbus_event_connect."""
+"""Wavin Sentio over Modbus TCP, built on modbus_event_connect.
+
+Everything a user of a Sentio needs is here, so that nothing has to be imported from
+modbus_event_connect: the client and its values, what a point is, the errors, and the connection
+a controller can share.
+"""
+from modbus_event_connect import (
+    CannotConnectError,
+    Change,
+    Client,
+    ClientError,
+    Clock,
+    DataType,
+    DataTypeKind,
+    DataValue,
+    InvalidValueError,
+    Key,
+    Labels,
+    Limits,
+    ModelError,
+    NotConnectedError,
+    Point,
+    PointsCallback,
+    PollRate,
+    Quality,
+    ReadOnlyError,
+    Selector,
+    Status,
+    StatusCallback,
+    Transform,
+    Unit,
+    UnsupportedDeviceError,
+    ValueCallback,
+    Write,
+    WriteKind,
+)
+from modbus_event_connect.modbus import ModbusConnection, ModbusTcpConnection
+
 from ._model import (
     NOT_SUPPORTED,
     PERIPHERAL,
@@ -38,6 +75,36 @@ from ._sentio import (
 
 __version__ = "0.2.0"
 __all__ = [
+    "CannotConnectError",
+    "Change",
+    "Client",
+    "ClientError",
+    "Clock",
+    "DataType",
+    "DataTypeKind",
+    "DataValue",
+    "InvalidValueError",
+    "Key",
+    "Labels",
+    "Limits",
+    "ModelError",
+    "NotConnectedError",
+    "Point",
+    "PointsCallback",
+    "PollRate",
+    "Quality",
+    "ReadOnlyError",
+    "Selector",
+    "Status",
+    "StatusCallback",
+    "Transform",
+    "Unit",
+    "UnsupportedDeviceError",
+    "ValueCallback",
+    "Write",
+    "WriteKind",
+    "ModbusConnection",
+    "ModbusTcpConnection",
     "DEFAULT_PORT",
     "DEFAULT_UNIT_ID",
     "NOT_SUPPORTED",
