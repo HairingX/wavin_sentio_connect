@@ -327,13 +327,15 @@ NOT_SUPPORTED: Mapping[PeripheralType, frozenset[PointKey[Any]]] = MappingProxyT
     PeripheralType.RT_201: frozenset({PeripheralPointKey.SIGNAL_STRENGTH}),
     PeripheralType.RS_211: frozenset({PeripheralPointKey.SIGNAL_STRENGTH}),
     PeripheralType.ET_210: frozenset({PeripheralPointKey.SIGNAL_STRENGTH}),
+    PeripheralType.LCD_200: frozenset({PeripheralPointKey.SIGNAL_STRENGTH}),
     PeripheralType.EU_208_A: frozenset({PeripheralPointKey.SIGNAL_STRENGTH}),
 })
 """The points a peripheral of each known type does not have, which a scan removes; a type not
 listed has every peripheral point.
 
-Sources: the manual's component table calls the RT-201, RS-211 and ET-210 wired. The EU-208-A has
-no antenna, and a CCU-208 answers "no reading" for its signal strength.
+Sources: the manual's component table calls the RT-201, RS-211 and ET-210 wired. The LCD-200 is
+wired and the EU-208-A has no antenna, and a CCU-208 answers "no reading" for the signal strength
+of both.
 """
 
 ROOM = "room"

@@ -54,7 +54,7 @@ room lacks: a dummy room ("no thermostat or sensor installed") has no temperatur
 dew point, and a room not associated with radiators, underfloor heating, drying, thermal
 integration or ventilation has no state or blocking source for it. Nor has a peripheral what
 its type is known to lack, as `NOT_SUPPORTED` lists: the manual's wired RT-201, RS-211 and
-ET-210, and the EU-208-A, have no signal strength.
+ET-210, the LCD-200 and the EU-208-A have no signal strength.
 `rooms(client)` and `peripherals(client)` describe the installation from values already read,
 with no extra requests.
 
