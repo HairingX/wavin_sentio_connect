@@ -182,7 +182,7 @@ written as one. A number the manual does not name reads as `NO_DATA`, and the va
 the number the controller sent. Standby, vacation and daylight saving, which the manual gives as
 0 and 1, are `bool`; their "no value", 255, reads as `NO_DATA` too.
 
-The model is in [`_model.py`](src/wavin_sentio_connect/_model.py); every key is declared there
+The model is in [`_model.py`](https://github.com/HairingX/wavin_sentio_connect/blob/main/src/wavin_sentio_connect/_model.py); every key is declared there
 with its address and encoding.
 
 The manual's "Modbus Address" column holds the addresses themselves, so its numbers are used unchanged:
@@ -203,9 +203,9 @@ different under standby, vacation or a schedule.
 
 ## Documentation
 
-- [`docs/sentio-modbus-reference.md`](docs/sentio-modbus-reference.md) - the protocol: register
+- [`docs/sentio-modbus-reference.md`](https://github.com/HairingX/wavin_sentio_connect/blob/main/docs/sentio-modbus-reference.md) - the protocol: register
   tables, data types, error handling, enumerations.
-- [`docs/sentio-registers.csv`](docs/sentio-registers.csv) - all 344 documented registers, one
+- [`docs/sentio-registers.csv`](https://github.com/HairingX/wavin_sentio_connect/blob/main/docs/sentio-registers.csv) - all 344 documented registers, one
   row each.
 
 ## Known gaps
@@ -224,4 +224,4 @@ This project is not affiliated with or endorsed by Wavin.
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](https://github.com/HairingX/wavin_sentio_connect/blob/main/LICENSE).
