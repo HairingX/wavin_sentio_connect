@@ -2,6 +2,7 @@
 peripherals 1 and 2, nothing else - exactly what the scan must find."""
 import asyncio
 import logging
+from collections.abc import Callable
 from typing import Any
 
 import pytest
@@ -55,31 +56,46 @@ def _text(text: str, registers: int = 16) -> list[int]:
 
 
 def _installation(*, address_space: tuple[int, int] = (3, 2)) -> SimulatedModbusDevice:
-    alarms: dict[int, int] = {1: 0, 2: 0}
     inputs: dict[int, int] = {1: address_space[0], 2: address_space[1], 10: 1, 11: 1, 12: 1,
                               13: 0, 14: 1530, 15: 0, 16: 1234, 20: 0}
     holding: dict[int, int] = {1: 3, 2: 2, 5: 1, 26: 0, 27: 0, 28: 0, 29: 0, 30: 1,
                                31: 0xFE0C, 32: 2000, 33: 0, 34: 0, 35: 60}
     holding.update(dict(enumerate(_text("Home"), start=10)))
-    for n, (name, air, dummy) in {1: ("Kitchen", 2150, 0), 3: ("Hall", 0x7FFF, 1)}.items():
-        base = room_base(n)
-        for offset in (1, 2, 3, 4, 5, 6, 7, 11, 12, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
-                       24, 25, 26, 27, 28):
-            inputs[base + offset] = 0
-        inputs[base + 1], inputs[base + 4], inputs[base + 27] = 2100, air, dummy
-        holding.update(dict(enumerate(_text(name), start=base + 1)))
-        for offset in range(17, 36):
-            holding[base + offset] = 0
-        holding[base + 19], holding[base + 20] = 2100, 32
-        alarms.update({base + bit: 0 for bit in (1, 2, 3, 4)})
-    for slot, (kind, serial, owner) in {1: (PeripheralType.CCU_208, 111, 0),
-                                        2: (PeripheralType.RT_250, 222, 1)}.items():
-        base = peripheral_base(slot)
-        inputs.update({base + 1: kind, base + 2: 0, base + 3: serial, base + 4: owner, base + 5: 80})
-        holding.update(dict(enumerate(_text(kind.name), start=base + 1)))
-        alarms.update({base + bit: 0 for bit in (1, 2, 3, 4)})
-    return SimulatedModbusDevice(input_registers=inputs, holding_registers=holding, discrete_inputs=alarms,
-                                 max_registers=32)
+    unit = SimulatedModbusDevice(input_registers=inputs, holding_registers=holding,
+                                 discrete_inputs={1: 0, 2: 0}, max_registers=32)
+    _set_up_room(unit, 1, "Kitchen", air=2150, dummy=False)
+    _set_up_room(unit, 3, "Hall", air=0x7FFF, dummy=True)
+    _pair(unit, 1, PeripheralType.CCU_208, serial=111, owner=0)
+    _pair(unit, 2, PeripheralType.RT_250, serial=222, owner=1)
+    return unit
+
+
+def _set_up_room(unit: SimulatedModbusDevice, n: int, name: str, *, air: int, dummy: bool) -> None:
+    base = room_base(n)
+    for offset in (1, 2, 3, 4, 5, 6, 7, 11, 12, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+                   24, 25, 26, 27, 28):
+        unit.input_registers[base + offset] = 0
+    unit.input_registers[base + 1], unit.input_registers[base + 4] = 2100, air
+    unit.input_registers[base + 27] = 1 if dummy else 0
+    unit.holding_registers.update(enumerate(_text(name), start=base + 1))
+    for offset in range(17, 36):
+        unit.holding_registers[base + offset] = 0
+    unit.holding_registers[base + 19], unit.holding_registers[base + 20] = 2100, 32
+    unit.discrete_inputs.update({base + bit: 0 for bit in (1, 2, 3, 4)})
+
+
+def _pair(unit: SimulatedModbusDevice, slot: int, kind: PeripheralType, *, serial: int, owner: int) -> None:
+    base = peripheral_base(slot)
+    unit.input_registers.update({base + 1: kind, base + 2: 0, base + 3: serial, base + 4: owner, base + 5: 80})
+    unit.holding_registers.update(enumerate(_text(kind.name), start=base + 1))
+    unit.discrete_inputs.update({base + bit: 0 for bit in (1, 2, 3, 4)})
+
+
+def _remove(unit: SimulatedModbusDevice, base: int) -> None:
+    """Take away every register of the block at `base`, as the controller does for an unused one."""
+    for registers in (unit.input_registers, unit.holding_registers, unit.discrete_inputs):
+        for address in [a for a in registers if base < a < base + 100]:
+            del registers[address]
 
 
 def _connected(*, read_only: bool = False,
@@ -323,6 +339,90 @@ def test_an_old_address_space_is_warned_about() -> None:
     finally:
         logger.removeHandler(handler)
     assert any("3.1 is older" in r.getMessage() for r in records)
+
+
+# ================================================================ when the installation changes
+
+class _PointsSeen:
+    def __init__(self) -> None:
+        self.gained: set[str] = set()
+        self.lost: set[str] = set()
+
+    def __call__(self, gained: frozenset[Key[Any]], lost: frozenset[Key[Any]]) -> None:
+        self.gained |= gained
+        self.lost |= lost
+
+
+def _changed(change: Callable[[SimulatedModbusDevice], None]) -> tuple[Client, SimulatedModbusGateway, _PointsSeen]:
+    """Connect, make `change` to the controller, and check it for changes as polling does."""
+    unit = _installation()
+    client, gateway = _connected(unit=unit)
+    seen = _PointsSeen()
+    client.subscribe_points(seen)
+    change(unit)
+    gateway.requests.clear()
+    asyncio.run(client.refresh(PollRate.SCAN))
+    return client, gateway, seen
+
+
+def test_an_unchanged_installation_is_checked_by_reading_input_registers_only() -> None:
+    _, gateway, seen = _changed(lambda unit: None)
+    assert {r.function for _, r in gateway.requests} == {FunctionCode.READ_INPUT_REGISTERS}
+    assert (seen.gained, seen.lost) == (set(), set())
+
+
+def test_a_room_set_up_later_is_found_while_polling() -> None:
+    client, _, seen = _changed(lambda unit: _set_up_room(unit, 2, "Office", air=2000, dummy=False))
+    assert client.instances("room") == (1, 2, 3)
+    assert "room_2_temp_air_current" in seen.gained and not seen.lost
+    name = client.value(room_key(2, RoomPointKey.NAME))
+    assert name is not None and name.value == "Office"
+
+
+def test_a_room_set_up_later_is_scanned_by_itself() -> None:
+    _, gateway, _ = _changed(lambda unit: _set_up_room(unit, 2, "Office", air=2000, dummy=False))
+    settings = {r.address for _, r in gateway.requests if r.function is FunctionCode.READ_HOLDING_REGISTERS}
+    assert settings and all(room_base(2) < address < room_base(3) for address in settings)
+
+
+def test_a_room_taken_away_is_lost_while_polling() -> None:
+    client, _, seen = _changed(lambda unit: _remove(unit, room_base(3)))
+    assert client.instances("room") == (1,)
+    assert "room_3_name" in seen.lost and not seen.gained
+
+
+def test_a_room_that_becomes_a_dummy_loses_its_sensor() -> None:
+    def make_dummy(unit: SimulatedModbusDevice) -> None:
+        unit.input_registers[room_base(1) + 27] = 1
+    client, _, seen = _changed(make_dummy)
+    assert not client.has("room_1_temp_air_current") and "room_1_temp_air_current" in seen.lost
+
+
+def test_a_peripheral_paired_later_is_found_while_polling() -> None:
+    client, _, _ = _changed(lambda unit: _pair(unit, 3, PeripheralType.RT_250, serial=333, owner=3))
+    assert client.instances("peripheral") == (1, 2, 3)
+
+
+def test_another_peripheral_in_a_slot_is_read_afresh() -> None:
+    client, _, _ = _changed(lambda unit: _pair(unit, 2, PeripheralType.RT_250, serial=999, owner=1))
+    serial = client.value(peripheral_key(2, PeripheralPointKey.SERIAL_NUMBER))
+    assert serial is not None and serial.value == 999
+
+
+def test_a_peripheral_moved_to_another_room_shows_its_new_room() -> None:
+    def move(unit: SimulatedModbusDevice) -> None:
+        unit.input_registers[peripheral_base(2) + 4] = 3
+    client, _, _ = _changed(move)
+    owner = client.value(peripheral_key(2, PeripheralPointKey.OWNER))
+    assert owner is not None and owner.value == 3
+
+
+def test_new_firmware_is_read_afresh() -> None:
+    def update(unit: SimulatedModbusDevice) -> None:
+        unit.input_registers[13] = 5
+    client, _, _ = _changed(update)
+    minor = client.value(LocationPointKey.SOFTWARE_MINOR)
+    assert minor is not None and minor.value == 5
 
 
 # ================================================================================ values

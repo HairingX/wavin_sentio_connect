@@ -597,48 +597,56 @@ def peripheral(slot: int) -> list[Point[Any]]:
 # ==================================================================================== scan
 
 
-async def find_installed_rooms_and_peripherals(scan: Scan) -> None:
-    """Remove every room and peripheral slot this installation does not use."""
-    numbers = range(1, ROOM_COUNT + 1)
-    rooms = await scan.read(tuple(room_key(n, RoomPointKey.TYPE) for n in numbers))
-    for n in numbers:
-        if rooms[room_key(n, RoomPointKey.TYPE)].quality is Quality.MISSING:
-            scan.set_available(Labels(room=n), False, reason="room not configured")
+async def check_the_controller(scan: Scan) -> None:
+    """Warn when the controller's address space is older than this map was written against.
 
-    slots = range(1, PERIPHERAL_COUNT + 1)
-    found = await scan.read(tuple(peripheral_key(s, PeripheralPointKey.TYPE) for s in slots))
-    for s in slots:
-        if found[peripheral_key(s, PeripheralPointKey.TYPE)].quality is Quality.MISSING:
-            scan.set_available(Labels(peripheral=s), False, reason="no peripheral in this slot")
-
-
-async def find_what_each_room_uses(scan: Scan) -> None:
-    """Remove what a room states it does not have.
-
-    The manual: a DUMMY room has "no thermostat or sensor installed", and an association of 0
-    is NONE. An unknown or unread value removes nothing.
+    The software version and serial number are read too, though never polled: new firmware, or
+    another controller, then changes what this scan read, and everything is scanned again.
     """
-    types = await scan.read(tuple(room_key(n, RoomPointKey.TYPE) for n in range(1, ROOM_COUNT + 1)))
-    rooms = [n for n in range(1, ROOM_COUNT + 1) if types[room_key(n, RoomPointKey.TYPE)].quality is Quality.GOOD]
-    found = await scan.read(tuple(room_key(n, point) for n in rooms for point in ROOM_FUNCTIONS.values()))
-    for n in rooms:
-        if types[room_key(n, RoomPointKey.TYPE)].value == RoomType.DUMMY:
-            scan.set_available(Labels(room=n, kind=SENSOR), False, reason="a dummy room has no sensor")
-        for function, point in ROOM_FUNCTIONS.items():
-            association = found[room_key(n, point)]
-            if association.quality is Quality.GOOD and association.value == 0:
-                scan.set_available(Labels(room=n, function=function), False,
-                                   reason=f"the room is not associated with {function}")
-
-
-async def check_address_space(scan: Scan) -> None:
-    """Warn when the controller's address space is older than this map was written against."""
-    found = await scan.read((LocationPointKey.DATAPOINT_MAJOR, LocationPointKey.DATAPOINT_MINOR))
+    found = await scan.read((LocationPointKey.DATAPOINT_MAJOR, LocationPointKey.DATAPOINT_MINOR,
+                             LocationPointKey.SOFTWARE_MAJOR, LocationPointKey.SOFTWARE_MINOR,
+                             LocationPointKey.SERIAL_NUMBER_PREFIX, LocationPointKey.SERIAL_NUMBER))
     major, minor = found[LocationPointKey.DATAPOINT_MAJOR].value, found[LocationPointKey.DATAPOINT_MINOR].value
     if isinstance(major, int) and isinstance(minor, int) and (major, minor) < ADDRESS_SPACE_REQUIRED:
         _LOGGER.warning("Sentio address space %d.%d is older than the %d.%d this register map was "
                         "written against. Some registers may be unavailable; update the control unit.",
                         major, minor, *ADDRESS_SPACE_REQUIRED)
+
+
+async def scan_room(scan: Scan, n: int) -> None:
+    """Remove room `n` if it is not configured, and what it states it does not have.
+
+    The manual: a DUMMY room has "no thermostat or sensor installed", and an association of 0
+    is NONE. An unknown or unread value removes nothing.
+    """
+    kind = (await scan.read((room_key(n, RoomPointKey.TYPE),)))[room_key(n, RoomPointKey.TYPE)]
+    if kind.quality is Quality.MISSING:
+        scan.set_available(Labels(room=n), False, reason="room not configured")
+    if kind.quality is not Quality.GOOD:
+        return
+    if kind.value == RoomType.DUMMY:
+        scan.set_available(Labels(room=n, kind=SENSOR), False, reason="a dummy room has no sensor")
+    found = await scan.read(tuple(room_key(n, point) for point in ROOM_FUNCTIONS.values()))
+    for function, point in ROOM_FUNCTIONS.items():
+        association = found[room_key(n, point)]
+        if association.quality is Quality.GOOD and association.value == 0:
+            scan.set_available(Labels(room=n, function=function), False,
+                               reason=f"the room is not associated with {function}")
+
+
+async def scan_peripheral(scan: Scan, slot: int) -> None:
+    """Remove peripheral slot `slot` if nothing is paired in it.
+
+    The serial number and owner are read too, though never polled: another peripheral in the
+    slot, or one moved to another room, then changes what this scan read, and the slot is read
+    afresh.
+    """
+    kind = peripheral_key(slot, PeripheralPointKey.TYPE)
+    if (await scan.read((kind,)))[kind].quality is Quality.MISSING:
+        scan.set_available(Labels(peripheral=slot), False, reason="no peripheral in this slot")
+        return
+    await scan.read((peripheral_key(slot, PeripheralPointKey.SERIAL_NUMBER),
+                     peripheral_key(slot, PeripheralPointKey.OWNER)))
 
 
 SENTIO = Model(
@@ -648,8 +656,8 @@ SENTIO = Model(
     read_back_after=0.5,  # measured with testing.measure_read_back on a CCU-208, address space 3.7
     sections=[
         Section(LOCATION),
-        RepeatedSection(room, range(1, ROOM_COUNT + 1), label=ROOM),
-        RepeatedSection(peripheral, range(1, PERIPHERAL_COUNT + 1), label=PERIPHERAL),
+        RepeatedSection(room, range(1, ROOM_COUNT + 1), label=ROOM, scan=scan_room),
+        RepeatedSection(peripheral, range(1, PERIPHERAL_COUNT + 1), label=PERIPHERAL, scan=scan_peripheral),
     ],
-    scan_steps=[check_address_space, find_installed_rooms_and_peripherals, find_what_each_room_uses],
+    scan_steps=[check_the_controller],
 )
