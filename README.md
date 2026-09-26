@@ -15,6 +15,10 @@ alike.
 pip install wavin-sentio-connect
 ```
 
+Everything you use comes from `wavin_sentio_connect`: the client and its values, the errors, the
+connection a controller can share, and, in `wavin_sentio_connect.testing`, a simulated controller
+for your own tests. modbus_event_connect is installed with it; nothing needs importing from it.
+
 ## Enabling Modbus on the controller
 
 Modbus is **disabled by default**. Enable it from a Sentio Display:
@@ -95,7 +99,7 @@ Every point has a poll rate, and the library reads it when it is due:
 Override any of them, or a single key:
 
 ```python
-from modbus_event_connect import PollRate
+from wavin_sentio_connect import PollRate
 client.set_poll_interval(PollRate.FAST, 5)
 client.set_poll_interval("room_4_temp_air_current", 2)
 await client.refresh(PollRate.STATIC)        # re-read the static values now
@@ -148,8 +152,7 @@ To put the controller on a connection the host already owns - a gateway shared w
 devices - use `create_client_on`:
 
 ```python
-from modbus_event_connect.modbus import ModbusTcpConnection
-from wavin_sentio_connect import create_client_on
+from wavin_sentio_connect import ModbusTcpConnection, create_client_on
 
 connection = ModbusTcpConnection("<device-ip>")
 client = create_client_on(connection, unit_id=1)

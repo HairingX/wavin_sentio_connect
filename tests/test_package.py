@@ -21,3 +21,23 @@ def test_every_link_in_its_description_works_where_the_description_is_shown() ->
     assert isinstance(description, str) and description
     links = re.findall(r"\]\(([^)]+)\)", description)
     assert links and all(link.startswith(("https://", "#")) for link in links), links
+
+
+def test_what_it_passes_on_from_modbus_event_connect_is_that_packages_own() -> None:
+    """What the package passes on is modbus_event_connect's own, not a copy that could drift."""
+    import modbus_event_connect
+    import modbus_event_connect.modbus
+    import modbus_event_connect.testing
+
+    import wavin_sentio_connect.testing
+
+    for package, sources in (
+        (wavin_sentio_connect, (modbus_event_connect, modbus_event_connect.modbus)),
+        (wavin_sentio_connect.testing, (modbus_event_connect.modbus, modbus_event_connect.testing)),
+    ):
+        for name in package.__all__:
+            source = next((s for s in sources if name in getattr(s, "__all__", ())), None)
+            if source is not None:
+                assert getattr(package, name) is getattr(source, name), name
+    assert "Client" in wavin_sentio_connect.__all__
+    assert "SimulatedModbusDevice" in wavin_sentio_connect.testing.__all__
