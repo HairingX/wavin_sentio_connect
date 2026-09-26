@@ -56,6 +56,18 @@ integration or ventilation has no state or blocking source for it. `rooms(client
 `peripherals(client)` describe the installation from values already read, with no extra
 requests.
 
+When the installation changes, `poll()` finds it; nobody needs to connect again. What each scan
+read is read again at `PollRate.SCAN`, and where it has changed, only that part is scanned again:
+
+| What changed | What is scanned again |
+|---|---|
+| a room's type, or what it is associated with | that room |
+| the peripheral in a slot, its serial number or the room it belongs to | that slot |
+| the address space, the software version or the controller's serial number | everything |
+
+`client.subscribe_points(callback)` is told the keys gained and lost - a room set up, a
+peripheral paired or removed.
+
 Every value is a `DataValue`: `value`, `quality` and `timestamp` (UTC).
 
 | Quality | Meaning |
@@ -76,6 +88,7 @@ Every point has a poll rate, and the library reads it when it is due:
 | `SLOW` | 60 s | settings |
 | `RARE` | 15 min | peripheral signal strength |
 | `STATIC` | at connect | versions, serial numbers, names, room types |
+| `SCAN` | 15 min | what the scans read, to find changes to the installation |
 
 Override any of them, or a single key:
 
