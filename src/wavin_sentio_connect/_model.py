@@ -323,19 +323,17 @@ class PeripheralPointKey:
         return _members(cls, kind)
 
 
-_WIRED = frozenset({PeripheralPointKey.SIGNAL_STRENGTH})
-
 NOT_SUPPORTED: Mapping[PeripheralType, frozenset[PointKey[Any]]] = MappingProxyType({
-    # The manual's component table calls these wired.
-    PeripheralType.RT_201: _WIRED,
-    PeripheralType.RS_211: _WIRED,
-    PeripheralType.ET_210: _WIRED,
-    # It has no antenna, and a CCU-208 answers "no reading" for its signal strength.
-    PeripheralType.EU_208_A: _WIRED,
+    PeripheralType.RT_201: frozenset({PeripheralPointKey.SIGNAL_STRENGTH}),
+    PeripheralType.RS_211: frozenset({PeripheralPointKey.SIGNAL_STRENGTH}),
+    PeripheralType.ET_210: frozenset({PeripheralPointKey.SIGNAL_STRENGTH}),
+    PeripheralType.EU_208_A: frozenset({PeripheralPointKey.SIGNAL_STRENGTH}),
 })
-"""The points a peripheral of each known type does not have, which a scan removes.
+"""The points a peripheral of each known type does not have, which a scan removes; a type not
+listed has every peripheral point.
 
-A type not listed is taken to have every peripheral point.
+Sources: the manual's component table calls the RT-201, RS-211 and ET-210 wired. The EU-208-A has
+no antenna, and a CCU-208 answers "no reading" for its signal strength.
 """
 
 ROOM = "room"
