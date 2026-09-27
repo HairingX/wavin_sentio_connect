@@ -183,8 +183,10 @@ A room point's key is the same in every room, so code that handles
 A state reads as its member of the enum the manual's values give - `RoomState`, `DryingState`,
 `VentilationState`, `BlockingSource`, `RoomType`, `RoomMode`, `RoomModeOverride`,
 `TemperaturePreset`, `RoomLock`, `HeatingCoolingMode`, `HeatingCoolingModeOverride`, `DeviceType`,
-`ModbusMode`, `UpdateMode`, `PeripheralType`, `PumpState`, `HeatCurveType` or `HeatSourceState` -
-and is written as one. A number the manual does not name reads as `NO_DATA`, and the value's `.raw` holds
+`ModbusMode`, `UpdateMode`, `PeripheralType`, `PumpState`, `HeatCurveType`, `HeatSourceState`,
+`DhwTankState`, `CirculationState`, `DhwMode`, `ReturnLimiterFunction`, `BufferSensorPriority`,
+`ChargeMode`, `VentilationUnitState`, `VentilationLevel`, `HeatExchangeMode`, `DehumidifierType` or
+`AllowedInMode` - and is written as one. A number the manual does not name reads as `NO_DATA`, and the value's `.raw` holds
 the number the controller sent. Standby, vacation and daylight saving, which the manual gives as
 0 and 1, are `bool`; their "no value", 255, reads as `NO_DATA` too.
 
@@ -193,16 +195,25 @@ with its address and encoding.
 
 The manual's "Modbus Address" column holds the addresses themselves, so its numbers are used unchanged:
 
-| Object | Keys | Base | Instances |
-|---|---|---|---|
-| Location | `LocationPointKey` | `0` | one |
-| Room *N* | `RoomPointKey`, `room_key` | `N * 100` | 1–16 |
-| Outdoor zone | `OutdoorPointKey` | `3300` | one |
-| Heating/cooling circuit (HCC) *N* | `HccPointKey`, `hcc_key` | `7600 + N * 100` | 1–3 |
-| Heating/cooling source | `HeatingCoolingSourcePointKey` | `8100` | one |
-| Boiler / heat pump | `BoilerHeatPumpPointKey` | `8200` | one |
-| Thermistor inputs T1–T5 | `ThermistorPointKey` | `12800` | one |
-| Peripheral *N* | `PeripheralPointKey`, `peripheral_key` | `51100 + N * 100` | 1–64 |
+| Object | Keys | Base | Instances | Read on a controller |
+|---|---|---|---|---|
+| Location | `LocationPointKey` | `0` | one | yes |
+| Room *N* | `RoomPointKey`, `room_key` | `N * 100` | 1–16 | yes |
+| Outdoor zone | `OutdoorPointKey` | `3300` | one | yes |
+| DHW tank | `DhwTankPointKey` | `6600` | one | **no** |
+| Sentio ITC *N* | `ItcPointKey`, `itc_key` | `7200 + N * 100` | 1–2 | **no** |
+| Heating/cooling circuit (HCC) *N* | `HccPointKey`, `hcc_key` | `7600 + N * 100` | 1–3 | yes |
+| Heating/cooling source | `HeatingCoolingSourcePointKey` | `8100` | one | yes |
+| Boiler / heat pump | `BoilerHeatPumpPointKey` | `8200` | one | yes |
+| Buffer tank | `BufferTankPointKey` | `8300` | one | **no** |
+| Thermistor inputs T1–T5 | `ThermistorPointKey` | `12800` | one | yes |
+| Peripheral *N* | `PeripheralPointKey`, `peripheral_key` | `51100 + N * 100` | 1–64 | yes |
+| Ventilation unit *N* | `VentilationPointKey`, `ventilation_key` | `60900 + N * 100` | 1–2 | **no** |
+| Dehumidifier *N* | `DehumidifierPointKey`, `dehumidifier_key` | `64900 + N * 100` | 1–4 | **no** |
+
+The objects marked **no** are modelled from the manual alone: no controller that has one has been
+read, so their encodings are the manual's and nothing more. A ventilation unit's feature register
+reads as an `int`; `VentilationFeature` names its bits.
 
 An object whose registers the controller refuses is left out, as a room never set up is; one it
 answers is there, even with "no reading" - a circuit without its inlet sensor, a thermistor input
@@ -228,8 +239,11 @@ different under standby, vacation or a schedule.
 
 ## Known gaps
 
-- The DHW tank, ITC, buffer tank, ventilation and dehumidifier objects are documented in the CSV
-  but not yet modelled.
+- The DHW tank, ITC, buffer tank, ventilation and dehumidifier objects are modelled from the
+  manual, but no controller that has one has been read.
+- The manual names ventilation register HR base+33 "Exhaust Fan Level Boost [m^3/h]", as the one
+  before it; its description and its place in the table give the supply flow at the unoccupied
+  level, `supply_flow_unoccupied`.
 - The DHW-201 (Calefa) and its ITC belong to another device type in the manual; a CCU-208 answers
   their registers with exception 4, device failure.
 

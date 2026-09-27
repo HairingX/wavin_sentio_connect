@@ -31,10 +31,15 @@ from wavin_sentio_connect import (
     SENTIO,
     UNITS,
     BoilerHeatPumpPointKey,
+    BufferTankPointKey,
+    DehumidifierPointKey,
+    DhwTankPointKey,
+    DhwTankState,
     DryingState,
     HccPointKey,
     HeatCurveType,
     HeatingCoolingSourcePointKey,
+    ItcPointKey,
     LocationPointKey,
     ModbusMode,
     OutdoorPointKey,
@@ -47,22 +52,34 @@ from wavin_sentio_connect import (
     RoomType,
     TemperaturePreset,
     ThermistorPointKey,
+    VentilationFeature,
+    VentilationPointKey,
     VentilationState,
+    VentilationUnitState,
     _model as sentio_model,
     create_client_on,
+    dehumidifier_key,
     hcc_key,
+    itc_key,
     peripheral_key,
     peripherals,
     room_key,
     rooms,
+    ventilation_key,
 )
 from wavin_sentio_connect._model import (
+    DEHUMIDIFIER_COUNT,
     HCC_COUNT,
+    ITC_COUNT,
     PERIPHERAL_COUNT,
     ROOM_COUNT,
+    VENTILATION_COUNT,
+    dehumidifier_base,
     hcc_base,
+    itc_base,
     peripheral_base,
     room_base,
+    ventilation_base,
 )
 
 
@@ -161,6 +178,9 @@ def test_the_model_has_every_room_and_slot_the_address_space_defines() -> None:
     assert resolved.instances["room"] == tuple(range(1, 17))
     assert resolved.instances["peripheral"] == tuple(range(1, 65))
     assert resolved.instances["hcc"] == (1, 2, 3)
+    assert resolved.instances["itc"] == (1, 2)
+    assert resolved.instances["ventilation"] == (1, 2)
+    assert resolved.instances["dehumidifier"] == (1, 2, 3, 4)
 
 
 def test_every_key_is_one_named_value_and_every_named_value_is_a_key() -> None:
@@ -172,7 +192,13 @@ def test_every_key_is_one_named_value_and_every_named_value_is_a_key() -> None:
         *(hcc_key(n, point) for n in range(1, HCC_COUNT + 1) for point in HccPointKey.all()),
         *HeatingCoolingSourcePointKey.all(),
         *BoilerHeatPumpPointKey.all(),
-        *ThermistorPointKey.all()]
+        *ThermistorPointKey.all(),
+        *DhwTankPointKey.all(),
+        *(itc_key(n, point) for n in range(1, ITC_COUNT + 1) for point in ItcPointKey.all()),
+        *BufferTankPointKey.all(),
+        *(ventilation_key(n, point) for n in range(1, VENTILATION_COUNT + 1) for point in VentilationPointKey.all()),
+        *(dehumidifier_key(n, point) for n in range(1, DEHUMIDIFIER_COUNT + 1)
+          for point in DehumidifierPointKey.all())]
     assert len(set(named)) == len(named)
     assert set(named) == set(resolve(SENTIO, {}).points)
 
@@ -555,6 +581,49 @@ def test_a_circuits_heat_curve_reads_as_the_manual_gives_it() -> None:
     delay = client.value(BoilerHeatPumpPointKey.DEMAND_START_DELAY)
     assert delay is not None and delay.value == 5
     assert client.points[BoilerHeatPumpPointKey.DEMAND_START_DELAY].unit is Unit.MINUTES
+
+
+def _add_objects_from_the_manual(unit: SimulatedModbusDevice) -> None:
+    """A DHW tank, ITC 1, a buffer tank, ventilation unit 1 and dehumidifier 1, which no CCU-208
+    read so far has; the values are chosen from the manual's."""
+    unit.input_registers.update({6601: 5230, 6602: 5500, 6603: 2, 6604: 0, 6605: 1})
+    unit.input_registers.update({itc_base(1) + 1: 2, itc_base(1) + 5: 3510})
+    unit.input_registers.update({8301: 3, 8304: 4500})
+    base = ventilation_base(1)
+    unit.input_registers.update(dict(enumerate(_text("Comfort 200"), start=base + 1)))
+    features = VentilationFeature.ALLOW_ECO | VentilationFeature.TEMP_SUPPLY
+    unit.input_registers.update({base + 21: 0, base + 22: int(features), base + 23: 3, base + 25: 1250})
+    unit.input_registers.update({dehumidifier_base(1) + 1: 1, dehumidifier_base(1) + 3: 2})
+
+
+def test_the_objects_from_the_manual_are_found_where_the_controller_answers_for_them() -> None:
+    unit = _installation()
+    _add_objects_from_the_manual(unit)
+    client, _ = _connected(unit=unit)
+    assert (client.instances("itc"), client.instances("ventilation"), client.instances("dehumidifier")) == \
+           ((1,), (1,), (1,))
+
+    def value(key: Any) -> Any:
+        found = client.value(key)
+        return found.value if found is not None else None
+
+    assert (value(DhwTankPointKey.TEMP_CURRENT), value(DhwTankPointKey.STATE)) == (52.3, DhwTankState.HEATING)
+    assert value(itc_key(1, ItcPointKey.TEMP_INLET_CURRENT)) == 35.1
+    assert value(BufferTankPointKey.TEMP_UPPER) == 45.0
+    assert value(ventilation_key(1, VentilationPointKey.DEVICE_MODEL)) == "Comfort 200"
+    assert value(ventilation_key(1, VentilationPointKey.STATE)) is VentilationUnitState.COMFORT
+    features = VentilationFeature(value(ventilation_key(1, VentilationPointKey.FEATURES)))
+    assert VentilationFeature.TEMP_SUPPLY in features and VentilationFeature.ALLOW_BOOST not in features
+    assert value(dehumidifier_key(1, DehumidifierPointKey.DRYING_STATE)) is DryingState.DRYING
+
+
+def test_a_controller_without_the_objects_from_the_manual_has_none_of_them() -> None:
+    unit = _installation()
+    _add_objects(unit)
+    client, _ = _connected(unit=unit)
+    assert (client.instances("itc"), client.instances("ventilation"), client.instances("dehumidifier")) == \
+           ((), (), ())
+    assert not client.has(DhwTankPointKey.STATE) and not client.has(BufferTankPointKey.STATE)
 
 
 def test_an_object_set_up_later_is_found_while_polling() -> None:
