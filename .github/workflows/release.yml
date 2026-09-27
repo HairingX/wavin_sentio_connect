@@ -41,6 +41,11 @@ env:
   PACKAGE: wavin_sentio_connect
   VERSION_FILE: src/wavin_sentio_connect/__init__.py
 
+# The shell given explicitly, so GitHub runs every step with pipefail.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   prepare:
     name: Resolve the version
