@@ -61,7 +61,7 @@ jobs:
             echo "Library: the published version this package declares"
           fi
           python -m pip install . -r requirements-test.txt
-          python -m pip show modbus_event_connect | head -2
+          python -m pip show modbus_event_connect | grep -E '^(Name|Version):'
 
 
       - name: Type check (pyright strict)
