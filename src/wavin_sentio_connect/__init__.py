@@ -115,7 +115,7 @@ from ._sentio import (
     rooms,
 )
 
-__version__ = "0.2.1"
+__version__ = "0.3.0"
 __all__ = [
     "CannotConnectError",
     "Change",
