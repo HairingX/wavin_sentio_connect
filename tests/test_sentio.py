@@ -30,9 +30,14 @@ from modbus_event_connect.testing import (
 from wavin_sentio_connect import (
     SENTIO,
     UNITS,
+    BoilerHeatPumpPointKey,
     DryingState,
+    HccPointKey,
+    HeatCurveType,
+    HeatingCoolingSourcePointKey,
     LocationPointKey,
     ModbusMode,
+    OutdoorPointKey,
     PeripheralPointKey,
     PeripheralType,
     RoomLock,
@@ -41,15 +46,24 @@ from wavin_sentio_connect import (
     RoomState,
     RoomType,
     TemperaturePreset,
+    ThermistorPointKey,
     VentilationState,
     _model as sentio_model,
     create_client_on,
+    hcc_key,
     peripheral_key,
     peripherals,
     room_key,
     rooms,
 )
-from wavin_sentio_connect._model import PERIPHERAL_COUNT, ROOM_COUNT, peripheral_base, room_base
+from wavin_sentio_connect._model import (
+    HCC_COUNT,
+    PERIPHERAL_COUNT,
+    ROOM_COUNT,
+    hcc_base,
+    peripheral_base,
+    room_base,
+)
 
 
 def _text(text: str, registers: int = 16) -> list[int]:
@@ -100,6 +114,34 @@ def _remove(unit: SimulatedModbusDevice, base: int) -> None:
             del registers[address]
 
 
+NO_READING = 0x7FFF
+
+
+def _add_objects(unit: SimulatedModbusDevice) -> None:
+    """The objects a CCU-208 (address space 3.7) answers for, with the values it gave: an outdoor
+    zone, heating/cooling circuits 1 and 2, the heating/cooling source, the boiler/heat pump and
+    the thermistor inputs."""
+    unit.input_registers.update({3301: NO_READING, 3302: 0, 3303: 0})
+    unit.holding_registers.update(dict(enumerate(_text("outdoor"), start=3301)))
+    unit.holding_registers[3317] = NO_READING
+    unit.discrete_inputs.update({3300 + bit: 0 for bit in (1, 2, 3, 4)})
+    for n in (1, 2):
+        base = hcc_base(n)
+        unit.input_registers.update({base + 1: 1, base + 2: 19, base + 3: 1, base + 4: 1,
+                                     base + 5: NO_READING, base + 6: NO_READING, base + 8: NO_READING})
+        unit.holding_registers.update(dict(enumerate(_text(f"Sentio HCC {n}"), start=base + 1)))
+        unit.holding_registers.update({base + 17: 2, base + 18: 10, base + 19: 0, base + 20: 2500, base + 21: 4500,
+                                       base + 22: 10, base + 23: 0, base + 24: 5000})
+        unit.discrete_inputs.update({base + bit: 0 for bit in (1, 2, 3, 4)})
+    unit.input_registers[8101] = 1
+    unit.discrete_inputs.update({8100 + bit: 0 for bit in (1, 2, 3)})
+    unit.input_registers.update({8201: 1, 8202: 0, 8203: NO_READING, 8204: NO_READING})
+    unit.holding_registers.update(dict(enumerate(_text("Heat pump / Boiler"), start=8201)))
+    unit.holding_registers.update({8217: 0, 8218: 0, 8219: 5, 8220: 0})
+    unit.discrete_inputs.update({8200 + bit: 0 for bit in (1, 2, 3, 4)})
+    unit.input_registers.update({12800 + number: NO_READING for number in range(1, 6)})
+
+
 def _connected(*, read_only: bool = False,
                unit: SimulatedModbusDevice | None = None) -> tuple[Client, SimulatedModbusGateway]:
     gateway = SimulatedModbusGateway({1: unit or _installation()})
@@ -118,13 +160,19 @@ def test_the_model_has_every_room_and_slot_the_address_space_defines() -> None:
     resolved = resolve(SENTIO, {})
     assert resolved.instances["room"] == tuple(range(1, 17))
     assert resolved.instances["peripheral"] == tuple(range(1, 65))
+    assert resolved.instances["hcc"] == (1, 2, 3)
 
 
 def test_every_key_is_one_named_value_and_every_named_value_is_a_key() -> None:
     named: list[Key[Any]] = [
         *LocationPointKey.all(),
         *(room_key(n, point) for n in range(1, ROOM_COUNT + 1) for point in RoomPointKey.all()),
-        *(peripheral_key(slot, point) for slot in range(1, PERIPHERAL_COUNT + 1) for point in PeripheralPointKey.all())]
+        *(peripheral_key(slot, point) for slot in range(1, PERIPHERAL_COUNT + 1) for point in PeripheralPointKey.all()),
+        *OutdoorPointKey.all(),
+        *(hcc_key(n, point) for n in range(1, HCC_COUNT + 1) for point in HccPointKey.all()),
+        *HeatingCoolingSourcePointKey.all(),
+        *BoilerHeatPumpPointKey.all(),
+        *ThermistorPointKey.all()]
     assert len(set(named)) == len(named)
     assert set(named) == set(resolve(SENTIO, {}).points)
 
@@ -463,6 +511,55 @@ def test_new_firmware_is_read_afresh() -> None:
     client, _, _ = _changed(update)
     minor = client.value(LocationPointKey.SOFTWARE_MINOR)
     assert minor is not None and minor.value == 5
+
+
+# ================================================================== the controller's objects
+
+def test_the_objects_the_controller_answers_for_are_found() -> None:
+    unit = _installation()
+    _add_objects(unit)
+    client, _ = _connected(unit=unit)
+    assert client.instances("hcc") == (1, 2)
+    assert all(client.has(key) for key in (OutdoorPointKey.AIR_TEMP, HeatingCoolingSourcePointKey.STATE,
+                                           BoilerHeatPumpPointKey.STATE, ThermistorPointKey.TEMP_T5))
+    assert not client.has(hcc_key(3, HccPointKey.STATE))
+
+
+def test_an_object_the_controller_refuses_is_not_there() -> None:
+    client, _ = _connected()
+    assert not any(client.has(key) for key in (*OutdoorPointKey.all(), *BoilerHeatPumpPointKey.all()))
+    assert client.unavailable_reasons[OutdoorPointKey.AIR_TEMP] == "the controller has no outdoor"
+    assert client.instances("hcc") == ()
+
+
+def test_an_object_answering_no_reading_is_still_there() -> None:
+    unit = _installation()
+    _add_objects(unit)
+    client, _ = _connected(unit=unit)
+    air = client.value(OutdoorPointKey.AIR_TEMP)
+    assert air is not None and air.quality is Quality.NO_DATA
+
+
+def test_a_circuits_heat_curve_reads_as_the_manual_gives_it() -> None:
+    unit = _installation()
+    _add_objects(unit)
+    client, _ = _connected(unit=unit)
+    def value(point: Any) -> Any:
+        found = client.value(hcc_key(1, point))
+        return found.value if found is not None else None
+
+    assert value(HccPointKey.HEAT_CURVE_TYPE) is HeatCurveType.UNDERFLOOR
+    assert (value(HccPointKey.HEAT_CURVE_SLOPE), value(HccPointKey.HEAT_CURVE_GAIN)) == (1.0, 1.0)
+    assert value(HccPointKey.HEAT_CURVE_INLET_MIN) == 25.0
+    assert value(HccPointKey.HIGH_TEMP_CUTOFF_ENABLE) is False
+    delay = client.value(BoilerHeatPumpPointKey.DEMAND_START_DELAY)
+    assert delay is not None and delay.value == 5
+    assert client.points[BoilerHeatPumpPointKey.DEMAND_START_DELAY].unit is Unit.MINUTES
+
+
+def test_an_object_set_up_later_is_found_while_polling() -> None:
+    client, _, _ = _changed(_add_objects)
+    assert client.instances("hcc") == (1, 2) and client.has(BoilerHeatPumpPointKey.STATE)
 
 
 # ================================================================================ values

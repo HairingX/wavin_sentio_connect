@@ -163,9 +163,9 @@ owns no timer: the application calls `poll()` from its own loop.
 
 ## Keys and addressing
 
-Every point has its key in `LocationPointKey`, `RoomPointKey` or `PeripheralPointKey`, with the
-type of its value. A location point's is its whole key; a room's or a peripheral's becomes one
-with the instance:
+Every point has its key in `LocationPointKey`, `RoomPointKey`, `PeripheralPointKey` or the key
+class of another of the controller's objects, with the type of its value. A location point's is
+its whole key; a room's, a peripheral's or a circuit's becomes one with the instance:
 
 ```python
 from wavin_sentio_connect import ROOM, LocationPointKey, RoomPointKey, room_key
@@ -180,10 +180,11 @@ A room point's key is the same in every room, so code that handles
 `RoomPointKey.TEMP_AIR_CURRENT` once handles it in all of them; `RoomPointKey.all()` lists them.
 `UNITS` is every unit a Sentio point has. Key strings never change; new points only add keys.
 
-A state reads as its member of the enum the manual's values give: `RoomState`, `DryingState`,
-`VentilationState`, `BlockingSource`, `RoomType`, `RoomMode`, `RoomModeOverride`, `TemperaturePreset`, `RoomLock`, `HeatingCoolingMode`,
-`HeatingCoolingModeOverride`, `DeviceType`, `ModbusMode`, `UpdateMode` or `PeripheralType`, and is
-written as one. A number the manual does not name reads as `NO_DATA`, and the value's `.raw` holds
+A state reads as its member of the enum the manual's values give - `RoomState`, `DryingState`,
+`VentilationState`, `BlockingSource`, `RoomType`, `RoomMode`, `RoomModeOverride`,
+`TemperaturePreset`, `RoomLock`, `HeatingCoolingMode`, `HeatingCoolingModeOverride`, `DeviceType`,
+`ModbusMode`, `UpdateMode`, `PeripheralType`, `PumpState`, `HeatCurveType` or `HeatSourceState` -
+and is written as one. A number the manual does not name reads as `NO_DATA`, and the value's `.raw` holds
 the number the controller sent. Standby, vacation and daylight saving, which the manual gives as
 0 and 1, are `bool`; their "no value", 255, reads as `NO_DATA` too.
 
@@ -192,11 +193,23 @@ with its address and encoding.
 
 The manual's "Modbus Address" column holds the addresses themselves, so its numbers are used unchanged:
 
-| Object | Base | Instances |
-|---|---|---|
-| Location | `0` | one |
-| Room *N* | `N * 100` | 1–16 |
-| Peripheral *N* | `51100 + N * 100` | 1–64 |
+| Object | Keys | Base | Instances |
+|---|---|---|---|
+| Location | `LocationPointKey` | `0` | one |
+| Room *N* | `RoomPointKey`, `room_key` | `N * 100` | 1–16 |
+| Outdoor zone | `OutdoorPointKey` | `3300` | one |
+| Heating/cooling circuit (HCC) *N* | `HccPointKey`, `hcc_key` | `7600 + N * 100` | 1–3 |
+| Heating/cooling source | `HeatingCoolingSourcePointKey` | `8100` | one |
+| Boiler / heat pump | `BoilerHeatPumpPointKey` | `8200` | one |
+| Thermistor inputs T1–T5 | `ThermistorPointKey` | `12800` | one |
+| Peripheral *N* | `PeripheralPointKey`, `peripheral_key` | `51100 + N * 100` | 1–64 |
+
+An object whose registers the controller refuses is left out, as a room never set up is; one it
+answers is there, even with "no reading" - a circuit without its inlet sensor, a thermistor input
+with nothing on it. `client.instances(HCC)` lists the circuits it has.
+
+A heat curve's slope and gain are `val_d2_fp10`, a type the manual's type table does not give:
+they are read as tenths, which its name gives, and a CCU-208 answers 10 for both, 1.0 that way.
 
 Peripheral slots are **not stable identities** - the controller reorders them when peripherals
 are learned or unlearned. Use `peripheral_{n}_serial_number` to recognise a device, and
@@ -215,8 +228,10 @@ different under standby, vacation or a schedule.
 
 ## Known gaps
 
-- Only the location, room and peripheral objects are modelled. Outdoor, DHW, ITC, HCC, buffer
-  tank, ventilation and dehumidifier objects are documented in the CSV but not yet wired.
+- The DHW tank, ITC, buffer tank, ventilation and dehumidifier objects are documented in the CSV
+  but not yet modelled.
+- The DHW-201 (Calefa) and its ITC belong to another device type in the manual; a CCU-208 answers
+  their registers with exception 4, device failure.
 
 ## Disclaimer
 
