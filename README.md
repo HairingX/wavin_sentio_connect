@@ -1,6 +1,6 @@
 # Wavin Sentio Connect
 
-An event-driven Python client for the **Wavin Sentio** floor heating controller over Modbus TCP,
+An event-driven Python client for **Wavin Sentio** over Modbus TCP,
 built on [modbus_event_connect](https://github.com/HairingX/modbus_event_connect).
 
 The register map is complete for the location, all 16 rooms and all 64 peripheral slots,
