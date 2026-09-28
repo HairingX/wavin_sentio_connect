@@ -4,6 +4,8 @@ Everything a user of a Sentio needs is here, so that nothing has to be imported 
 modbus_event_connect: the client and its values, what a point is, the errors, and the connection
 a controller can share.
 """
+from importlib.metadata import version as _installed_version
+
 from modbus_event_connect import (
     CannotConnectError,
     Change,
@@ -115,7 +117,7 @@ from ._sentio import (
     rooms,
 )
 
-__version__ = "0.3.0"
+__version__ = _installed_version("wavin_sentio_connect")
 __all__ = [
     "CannotConnectError",
     "Change",
