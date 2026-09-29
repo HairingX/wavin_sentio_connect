@@ -711,6 +711,22 @@ def test_writing_the_no_reading_sentinel_is_refused() -> None:
         asyncio.run(client.write(room_key(1, RoomPointKey.TEMP_AIR_TARGET), 327.67))
 
 
+def test_a_write_answered_busy_is_sent_once() -> None:
+    unit = _installation()
+    client = create_client_on(SimulatedModbusGateway({1: unit}))
+    asyncio.run(client.connect())
+    unit.busy_for = 1
+    assert asyncio.run(client.write(room_key(1, RoomPointKey.TEMP_AIR_TARGET), 22.0)) is False
+
+
+def test_a_write_answered_busy_is_sent_again_for_write_retry_for_seconds() -> None:
+    unit = _installation()
+    client = create_client_on(SimulatedModbusGateway({1: unit}), write_retry_for=10.0)
+    asyncio.run(client.connect())
+    unit.busy_for = 1
+    assert asyncio.run(client.write(room_key(1, RoomPointKey.TEMP_AIR_TARGET), 22.0)) is True
+
+
 def test_a_read_only_client_never_writes() -> None:
     client, gateway = _connected(read_only=True)
     with pytest.raises(ReadOnlyError):
