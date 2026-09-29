@@ -25,20 +25,26 @@ DEFAULT_UNIT_ID = 1
 
 
 def create_client(host: str, *, port: int = DEFAULT_PORT, unit_id: int = DEFAULT_UNIT_ID,
-                  read_only: bool = False, clock: Clock | None = None) -> Client:
+                  read_only: bool = False, clock: Clock | None = None, write_retry_for: float = 0.0) -> Client:
     """A client for the Sentio at `host`, with its own connection; call `connect()` on it.
 
-    `read_only=True` refuses every write before it reaches the controller.
+    Args:
+        read_only: refuse every write before it reaches the controller.
+        write_retry_for: seconds after its first sending that a write the controller answered
+            busy is still sent again; 0 sends every write once.
     """
     return Client(ModbusDevice.tcp(host, port, unit_id, clock=clock), SENTIO,
-                  clock=clock, read_only=read_only)
+                  clock=clock, read_only=read_only, write_retry_for=write_retry_for)
 
 
-def create_client_on(connection: ModbusConnection, *, unit_id: int = DEFAULT_UNIT_ID,
-                     read_only: bool = False, clock: Clock | None = None) -> Client:
-    """A client on a connection the host already owns - a gateway shared with other devices."""
+def create_client_on(connection: ModbusConnection, *, unit_id: int = DEFAULT_UNIT_ID, read_only: bool = False,
+                     clock: Clock | None = None, write_retry_for: float = 0.0) -> Client:
+    """A client on a connection the host already owns - a gateway shared with other devices.
+
+    `read_only` and `write_retry_for` are as for `create_client`.
+    """
     return Client(ModbusDevice(connection, unit_id, clock=clock), SENTIO,
-                  clock=clock, read_only=read_only)
+                  clock=clock, read_only=read_only, write_retry_for=write_retry_for)
 
 
 # ============================================================================ installation
