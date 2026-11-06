@@ -437,15 +437,7 @@ def test_an_old_address_space_is_warned_about() -> None:
 
 # ======================================================================== an unreachable link
 
-def test_a_client_must_be_told_whether_to_reconnect() -> None:
-    unstated: dict[str, Any] = {}
-    with pytest.raises(TypeError, match="reconnect"):
-        create_client("192.0.2.1", **unstated)
-
-
-@pytest.mark.parametrize("reconnect", [True, False])
-def test_a_client_gives_its_connection_the_reconnect_it_was_told(
-        monkeypatch: pytest.MonkeyPatch, reconnect: bool) -> None:
+def test_a_client_opens_a_lost_link_again_by_itself(monkeypatch: pytest.MonkeyPatch) -> None:
     told: dict[str, Any] = {}
     tcp = ModbusDevice.tcp
 
@@ -454,8 +446,8 @@ def test_a_client_gives_its_connection_the_reconnect_it_was_told(
         return tcp(*args, **kwargs)
 
     monkeypatch.setattr(ModbusDevice, "tcp", recording)
-    create_client("192.0.2.1", reconnect=reconnect)
-    assert told["reconnect"] is reconnect
+    create_client("192.0.2.1")
+    assert told["reconnect"] is True
 
 
 class _CountingGateway(SimulatedModbusGateway):
