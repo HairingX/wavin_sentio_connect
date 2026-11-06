@@ -24,16 +24,18 @@ DEFAULT_UNIT_ID = 1
 """The manual gives 255 for Modbus TCP "if needed"."""
 
 
-def create_client(host: str, *, port: int = DEFAULT_PORT, unit_id: int = DEFAULT_UNIT_ID,
+def create_client(host: str, *, reconnect: bool, port: int = DEFAULT_PORT, unit_id: int = DEFAULT_UNIT_ID,
                   read_only: bool = False, clock: Clock | None = None, write_retry_for: float = 0.0) -> Client:
     """A client for the Sentio at `host`, with its own connection; call `connect()` on it.
 
     Args:
+        reconnect: whether a lost link is opened again when the controller is next asked. If
+            not, it stays closed until `connect()` opens it.
         read_only: refuse every write before it reaches the controller.
         write_retry_for: seconds after its first sending that a write the controller answered
             busy is still sent again; 0 sends every write once.
     """
-    return Client(ModbusDevice.tcp(host, port, unit_id, clock=clock), SENTIO,
+    return Client(ModbusDevice.tcp(host, port, unit_id, reconnect=reconnect, clock=clock), SENTIO,
                   clock=clock, read_only=read_only, write_retry_for=write_retry_for)
 
 

@@ -38,7 +38,7 @@ def on_change(key, old, new):
     print(f"{key}: {new.value} ({new.quality.name})")
 
 async def main():
-    client = create_client("<device-ip>")
+    client = create_client("<device-ip>", reconnect=True)   # a lost link is opened again by itself
     await client.connect()              # finds the installed rooms and peripherals
 
     for room in rooms(client):
@@ -134,7 +134,7 @@ For monitoring only, create the client read-only; every write is then refused be
 the controller:
 
 ```python
-client = create_client("<device-ip>", read_only=True)
+client = create_client("<device-ip>", reconnect=True, read_only=True)
 ```
 
 ## Alarms
@@ -156,7 +156,7 @@ devices - use `create_client_on`:
 ```python
 from wavin_sentio_connect import ModbusTcpConnection, create_client_on
 
-connection = ModbusTcpConnection("<device-ip>")
+connection = ModbusTcpConnection("<device-ip>", reconnect=True)
 client = create_client_on(connection, unit_id=1)
 ```
 

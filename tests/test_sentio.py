@@ -18,7 +18,7 @@ from modbus_event_connect import (
     ReadOnlyError,
     Unit,
 )
-from modbus_event_connect.modbus import FunctionCode, Request, Response
+from modbus_event_connect.modbus import FunctionCode, ModbusDevice, Request, Response
 from modbus_event_connect.testing import (
     FakeClock,
     SimulatedModbusDevice,
@@ -58,6 +58,7 @@ from wavin_sentio_connect import (
     VentilationState,
     VentilationUnitState,
     _model as sentio_model,
+    create_client,
     create_client_on,
     dehumidifier_key,
     hcc_key,
@@ -435,6 +436,27 @@ def test_an_old_address_space_is_warned_about() -> None:
 
 
 # ======================================================================== an unreachable link
+
+def test_a_client_must_be_told_whether_to_reconnect() -> None:
+    unstated: dict[str, Any] = {}
+    with pytest.raises(TypeError, match="reconnect"):
+        create_client("192.0.2.1", **unstated)
+
+
+@pytest.mark.parametrize("reconnect", [True, False])
+def test_a_client_gives_its_connection_the_reconnect_it_was_told(
+        monkeypatch: pytest.MonkeyPatch, reconnect: bool) -> None:
+    told: dict[str, Any] = {}
+    tcp = ModbusDevice.tcp
+
+    def recording(*args: Any, **kwargs: Any) -> ModbusDevice:
+        told.update(kwargs)
+        return tcp(*args, **kwargs)
+
+    monkeypatch.setattr(ModbusDevice, "tcp", recording)
+    create_client("192.0.2.1", reconnect=reconnect)
+    assert told["reconnect"] is reconnect
+
 
 class _CountingGateway(SimulatedModbusGateway):
     """Counts every request put to it, those its link was down for included."""

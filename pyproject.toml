@@ -76,6 +76,4 @@ extraPaths = ["tests"]
 reportPrivateUsage = "none"
 
 [tool.hairingx-workflows]
-transition = "Moved onto the shared workflows with tests that do not yet cover every line."
-coverage = 99
 libraries = ["modbus_event_connect"]
