@@ -18,7 +18,7 @@ from modbus_event_connect import (
     ReadOnlyError,
     Unit,
 )
-from modbus_event_connect.modbus import FunctionCode
+from modbus_event_connect.modbus import FunctionCode, Request, Response
 from modbus_event_connect.testing import (
     FakeClock,
     SimulatedModbusDevice,
@@ -50,6 +50,7 @@ from wavin_sentio_connect import (
     RoomPointKey,
     RoomState,
     RoomType,
+    Status,
     TemperaturePreset,
     ThermistorPointKey,
     VentilationFeature,
@@ -431,6 +432,78 @@ def test_an_old_address_space_is_warned_about() -> None:
     finally:
         logger.removeHandler(handler)
     assert any("3.1 is older" in r.getMessage() for r in records)
+
+
+# ======================================================================== an unreachable link
+
+class _CountingGateway(SimulatedModbusGateway):
+    """Counts every request put to it, those its link was down for included."""
+
+    asked = 0
+
+    async def request(self, request: Request) -> Response:
+        self.asked += 1
+        return await super().request(request)
+
+
+class _Polled:
+    """A connected client, its every point subscribed to, polled once a second."""
+
+    def __init__(self) -> None:
+        self.clock = FakeClock()
+        self.gateway = _CountingGateway({1: _installation()})
+        self.client = create_client_on(self.gateway, clock=self.clock)
+        self.unavailable = False
+        asyncio.run(self.client.connect())
+        for key in self.client.points:
+            self.client.subscribe(key, lambda key, old, new: None)
+        self.client.subscribe_status(Status.CONNECTED, self._seen)
+        self.run(30)
+
+    def _seen(self, status: Status, old: Any, new: Any) -> None:
+        self.unavailable |= not new.value
+
+    def run(self, seconds: int) -> None:
+        async def ticks() -> None:
+            for _ in range(seconds):
+                await self.client.poll()
+                self.clock.advance(1)
+        asyncio.run(ticks())
+
+    def seconds_until_connected(self) -> int:
+        waited = 0
+        while not self.client.status(Status.CONNECTED).value:
+            self.run(1)
+            waited += 1
+        return waited
+
+
+@pytest.mark.parametrize("outage", [35, 65, 95, 125, 605])
+def test_the_controller_is_read_again_within_ten_seconds_of_its_link_returning(outage: int) -> None:
+    polled = _Polled()
+    polled.gateway.link_down = True
+    polled.run(outage)
+    assert polled.unavailable
+    polled.gateway.link_down = False
+    assert polled.seconds_until_connected() <= 10
+
+
+def test_a_controller_that_stays_silent_is_asked_at_most_every_ten_seconds_but_never_given_up_on() -> None:
+    polled = _Polled()
+    polled.gateway.link_down = True
+    polled.run(60)
+    asked = polled.gateway.asked
+    polled.run(300)
+    assert 20 <= polled.gateway.asked - asked <= 30
+
+
+def test_a_link_lost_for_less_than_half_a_minute_never_shows_the_controller_unavailable() -> None:
+    polled = _Polled()
+    polled.gateway.link_down = True
+    polled.run(25)
+    polled.gateway.link_down = False
+    polled.run(15)
+    assert not polled.unavailable and polled.client.status(Status.CONNECTED).value
 
 
 # ================================================================ when the installation changes
