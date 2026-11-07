@@ -53,7 +53,7 @@ class Live:
 async def live() -> AsyncGenerator[Live, None]:
     assert HOST is not None   # guarded by the skip above
     connection = ModbusTcpConnection(HOST, PORT)
-    client = Client(ModbusDevice(connection, UNIT_ID, owns_connection=True), SENTIO, read_only=True)
+    client = Client(ModbusDevice(connection, UNIT_ID, owns_connection=True, reconnect=None), SENTIO, read_only=True)
     try:
         await client.connect()
     except Exception as err:

@@ -32,7 +32,7 @@ classifiers = [
 ]
 requires-python = ">=3.14"
 dependencies = [
-    "modbus_event_connect>=0.6.2,<0.7",
+    "modbus_event_connect>=0.7,<0.8",
 ]
 
 [project.urls]
@@ -76,6 +76,4 @@ extraPaths = ["tests"]
 reportPrivateUsage = "none"
 
 [tool.hairingx-workflows]
-transition = "Moved onto the shared workflows with tests that do not yet cover every line."
-coverage = 99
-libraries = ["modbus_event_connect"]
+libraries = ["event_connect", "modbus_event_connect"]

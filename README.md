@@ -123,6 +123,8 @@ await client.write(room_key(1, RoomPointKey.LOCK), RoomLock.HOTEL)   # LOCKED / 
 - The written point is read back, so subscribers see what the controller holds rather than what
   was asked for. A write that changes the rooms' regulated targets - vacation, standby, a room's
   setpoint, mode or preset - reads those targets again too.
+- A controller that stops answering is no longer asked once 3 requests in a row went unanswered,
+  then asked again after 2, 4 and 8 s and every 10 s after that, which opens its link again.
 - The controller answers `SERVER_DEVICE_BUSY` (`0x06`) while it stores a change; the manual says
   such a request "shall be repeated again". A read is, with backoff. A write answered busy is
   reported as not taken; `create_client(..., write_retry_for=seconds)` sends it again until
