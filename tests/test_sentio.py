@@ -10,12 +10,14 @@ from modbus_event_connect import (
     Client,
     DataType,
     DataTypeKind,
+    Exponential,
     InvalidValueError,
     Key,
     Labels,
     PollRate,
     Quality,
     ReadOnlyError,
+    Retry,
     Unit,
 )
 from modbus_event_connect.modbus import FunctionCode, ModbusDevice, Request, Response
@@ -437,7 +439,8 @@ def test_an_old_address_space_is_warned_about() -> None:
 
 # ======================================================================== an unreachable link
 
-def test_a_client_opens_a_lost_link_again_by_itself(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_a_client_asks_the_controller_again_after_2_4_and_8_seconds_then_every_10(
+        monkeypatch: pytest.MonkeyPatch) -> None:
     told: dict[str, Any] = {}
     tcp = ModbusDevice.tcp
 
@@ -447,7 +450,7 @@ def test_a_client_opens_a_lost_link_again_by_itself(monkeypatch: pytest.MonkeyPa
 
     monkeypatch.setattr(ModbusDevice, "tcp", recording)
     create_client("192.0.2.1")
-    assert told["reconnect"] is True
+    assert told["reconnect"] == Retry(Exponential(2.0, max=10.0))
 
 
 class _CountingGateway(SimulatedModbusGateway):

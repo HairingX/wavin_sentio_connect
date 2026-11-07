@@ -20,7 +20,7 @@ from typing import Any
 
 import pytest
 import pytest_asyncio
-from modbus_event_connect import Client, DataValue, Key, Quality, ReadOnlyError, Unit
+from modbus_event_connect import Client, DataValue, Fixed, Key, Quality, ReadOnlyError, Retry, Unit
 from modbus_event_connect.modbus import FunctionCode, ModbusDevice, ModbusTcpConnection, Request
 
 from conftest import live_or_skip, live_setting
@@ -52,8 +52,9 @@ class Live:
 @pytest_asyncio.fixture(scope="module", loop_scope="module")  # pyright: ignore[reportUntypedFunctionDecorator, reportUnknownMemberType]
 async def live() -> AsyncGenerator[Live, None]:
     assert HOST is not None   # guarded by the skip above
-    connection = ModbusTcpConnection(HOST, PORT, reconnect=True)
-    client = Client(ModbusDevice(connection, UNIT_ID, owns_connection=True), SENTIO, read_only=True)
+    connection = ModbusTcpConnection(HOST, PORT)
+    client = Client(ModbusDevice(connection, UNIT_ID, owns_connection=True, reconnect=Retry(Fixed(10.0))), SENTIO,
+                    read_only=True)
     try:
         await client.connect()
     except Exception as err:

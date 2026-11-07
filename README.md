@@ -38,7 +38,7 @@ def on_change(key, old, new):
     print(f"{key}: {new.value} ({new.quality.name})")
 
 async def main():
-    client = create_client("<device-ip>")   # a lost link is opened again by itself
+    client = create_client("<device-ip>")
     await client.connect()              # finds the installed rooms and peripherals
 
     for room in rooms(client):
@@ -123,6 +123,8 @@ await client.write(room_key(1, RoomPointKey.LOCK), RoomLock.HOTEL)   # LOCKED / 
 - The written point is read back, so subscribers see what the controller holds rather than what
   was asked for. A write that changes the rooms' regulated targets - vacation, standby, a room's
   setpoint, mode or preset - reads those targets again too.
+- A controller that stops answering is no longer asked once 3 requests in a row went unanswered,
+  then asked again after 2, 4 and 8 s and every 10 s after that, which opens its link again.
 - The controller answers `SERVER_DEVICE_BUSY` (`0x06`) while it stores a change; the manual says
   such a request "shall be repeated again". A read is, with backoff. A write answered busy is
   reported as not taken; `create_client(..., write_retry_for=seconds)` sends it again until
@@ -156,12 +158,9 @@ devices - use `create_client_on`:
 ```python
 from wavin_sentio_connect import ModbusTcpConnection, create_client_on
 
-connection = ModbusTcpConnection("<device-ip>", reconnect=True)
+connection = ModbusTcpConnection("<device-ip>")
 client = create_client_on(connection, unit_id=1)
 ```
-
-The same way gives a client whose lost link stays closed until `connect()` opens it again: make
-the connection with `reconnect=False`.
 
 The client is asynchronous end to end - no threads, nothing that blocks the event loop - and
 owns no timer: the application calls `poll()` from its own loop.

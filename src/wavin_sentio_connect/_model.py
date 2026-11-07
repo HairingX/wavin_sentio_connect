@@ -9,9 +9,7 @@ from typing import Any
 from types import MappingProxyType
 
 from modbus_event_connect import (
-    CircuitBreaker,
     DataType,
-    Exponential,
     InstanceScanStep,
     Key,
     Labels,
@@ -55,11 +53,6 @@ PERIPHERAL_COUNT = 64
 
 MAX_REGISTERS = 32
 """The manual caps one request at 32 registers - well below the Modbus protocol's 125."""
-
-BREAKER = CircuitBreaker(after=3, pause=Exponential(2.0, max=10.0))
-"""After 3 requests in a row go unanswered, the controller is asked again after 2, 4 and 8 s, then
-every 10 s until it answers. It has a link of its own, so asking it delays no other device, and
-10 s is as often as it is read while it answers."""
 
 
 def room_base(room: int) -> int:
@@ -1648,8 +1641,7 @@ async def scan_peripheral(scan: Scan, slot: int) -> None:
 SENTIO = Model(
     name="Sentio",
     manufacturer="Wavin",
-    options=ModbusOptions(numbering=plain(first_address=1), max_registers=MAX_REGISTERS,  # verified live
-                          breaker=BREAKER),
+    options=ModbusOptions(numbering=plain(first_address=1), max_registers=MAX_REGISTERS),  # verified live
     read_back_after=0.5,  # measured with testing.measure_read_back on a CCU-208, address space 3.7
     sections=[
         Section(LOCATION),
