@@ -62,6 +62,7 @@ from wavin_sentio_connect import (
     VentilationState,
     VentilationUnitState,
     _model as sentio_model,
+    controller_model,
     create_client,
     create_client_on,
     dehumidifier_key,
@@ -428,6 +429,18 @@ def test_the_peripherals_describe_the_installation() -> None:
     found = {p.slot: p for p in peripherals(client)}
     assert (found[1].model, found[1].serial_number, found[1].owner) == ("CCU-208", 111, 0)
     assert (found[2].model, found[2].serial_number, found[2].owner) == ("RT-250", 222, 1)
+
+
+def test_the_controller_is_named_by_the_type_it_reports() -> None:
+    client, _ = _connected()
+    assert controller_model(client) == "CCU-208"
+
+
+def test_a_controller_that_reports_no_type_has_no_model() -> None:
+    unit = _installation()
+    del unit.input_registers[10]
+    client, _ = _connected(unit=unit)
+    assert controller_model(client) is None
 
 
 def test_an_old_address_space_is_warned_about() -> None:

@@ -59,8 +59,8 @@ dew point, and a room not associated with radiators, underfloor heating, drying,
 integration or ventilation has no state or blocking source for it. Nor has a peripheral what
 its type is known to lack, as `NOT_SUPPORTED` lists: the manual's wired RT-201, RS-211 and
 ET-210, the LCD-200 and the EU-208-A have no signal strength.
-`rooms(client)` and `peripherals(client)` describe the installation from values already read,
-with no extra requests.
+`rooms(client)`, `peripherals(client)` and `controller_model(client)` - the controller's model,
+such as "CCU-208" - describe the installation from values already read, with no extra requests.
 
 When the installation changes, `poll()` finds it; nobody needs to connect again. What each scan
 read is read again at `PollRate.SCAN`, and where it has changed, only that part is scanned again:

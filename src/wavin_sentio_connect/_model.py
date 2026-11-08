@@ -239,6 +239,12 @@ class PeripheralType(IntEnum):
     """The control unit itself. Wider than a byte, hence a 16-bit register."""
 
 
+def model_name(kind: DeviceType | PeripheralType) -> str:
+    """The product a device or peripheral type stands for, as Wavin writes it, such as
+    "CCU-208"."""
+    return kind.name.replace("_", "-")
+
+
 class PumpState(IntEnum):
     """Values of a heating/cooling circuit's pump demand and pump state registers."""
     IDLE = 1
@@ -1620,10 +1626,9 @@ async def scan_peripheral(scan: Scan, slot: int) -> None:
         scan.set_available(Labels(peripheral=slot), False, reason="no peripheral in this slot")
         return
     if found.quality is Quality.GOOD and isinstance(found.value, PeripheralType):
-        model = found.value.name.replace("_", "-")
         for point in NOT_SUPPORTED.get(found.value, frozenset()):
             scan.set_available((peripheral_key(slot, point),), False,
-                               reason=f"{model} has no {point.name.replace('_', ' ')}")
+                               reason=f"{model_name(found.value)} has no {point.name.replace('_', ' ')}")
     await scan.read((peripheral_key(slot, PeripheralPointKey.SERIAL_NUMBER),
                      peripheral_key(slot, PeripheralPointKey.OWNER)))
 

@@ -11,10 +11,12 @@ from ._model import (
     ROOM,
     SENTIO,
     SENTIO_MODBUS,
+    LocationPointKey,
     PeripheralPointKey,
     PeripheralType,
     RoomPointKey,
     RoomType,
+    model_name,
     peripheral_key,
     room_key,
 )
@@ -90,7 +92,14 @@ class SentioPeripheral:
     @property
     def model(self) -> str:
         """A readable model name, such as "RT-250", or "unknown"."""
-        return self.type.name.replace("_", "-") if self.type is not None else "unknown"
+        return model_name(self.type) if self.type is not None else "unknown"
+
+
+def controller_model(client: Client) -> str | None:
+    """The controller's model as it reports it, such as "CCU-208", from the value read during
+    connect(); None if it reported none."""
+    found = _value(client, LocationPointKey.DEVICE_TYPE)
+    return model_name(found) if found is not None else None
 
 
 def rooms(client: Client) -> list[SentioRoom]:
