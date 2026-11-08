@@ -34,6 +34,7 @@ from modbus_event_connect import (
     UnsupportedDeviceError,
     ValueCallback,
     Write,
+    WriteRange,
     WriteKind,
 )
 from modbus_event_connect.modbus import ModbusConnection, ModbusTcpConnection
@@ -149,6 +150,7 @@ __all__ = [
     "UnsupportedDeviceError",
     "ValueCallback",
     "Write",
+    "WriteRange",
     "WriteKind",
     "ModbusConnection",
     "ModbusTcpConnection",
