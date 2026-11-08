@@ -17,6 +17,7 @@ from modbus_event_connect import (
     PollRate,
     Quality,
     ReadOnlyError,
+    Timing,
     Unit,
 )
 from modbus_event_connect.modbus import FunctionCode, ModbusConnection, Request, Response
@@ -376,9 +377,16 @@ def test_writing_vacation_updates_every_rooms_target_without_waiting_for_its_pol
     client.subscribe(room_key(1, RoomPointKey.TEMP_AIR_TARGET_ACTIVE), lambda key, old, new: seen.append(new.value))
     unit.input_registers[room_base(1) + 1] = 1600          # what the controller does on vacation
     asyncio.run(client.write(LocationPointKey.VACATION_ENABLE, True))
-    clock.advance(sentio_model.REREAD_AFTER_WRITE)
+    clock.advance(SENTIO.timing.read_back_after)
     asyncio.run(client.poll())
     assert seen == [21.0, 16.0]
+
+
+def test_what_a_write_changes_is_read_once_the_write_shows_however_long_that_is() -> None:
+    """The time a write takes to show is measured once, for the controller as a whole."""
+    timing = Timing(read_back_after=2.0)
+    written = [p for p in resolve(SENTIO_MODBUS, {}).points.values() if p.on_write is not None]
+    assert written and all(timing.on_write_delay(point) == 2.0 for point in written)
 
 
 def test_a_peripherals_signal_strength_is_read_rarely() -> None:

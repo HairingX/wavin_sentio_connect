@@ -990,13 +990,11 @@ watched. Per the manual, standby and a room's setpoint, override, preset and vac
 standby temperatures decide it too.
 """
 
-REREAD_AFTER_WRITE = 0.5
-"""Seconds after a write before the groups it changes are read. Measured with the above."""
-
 
 def rereads(group: str, **where: int) -> Refresh:
-    """Read `group` again after a write: all of it, or the part `where` selects, as `room=n`."""
-    return Refresh(Labels(group=group, **where), after=REREAD_AFTER_WRITE)
+    """Read `group` again as long after a write as the write takes to show: all of it, or the
+    part `where` selects, as `room=n`."""
+    return Refresh(Labels(group=group, **where))
 
 
 # ================================================================================ encodings
