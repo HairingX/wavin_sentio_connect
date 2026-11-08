@@ -1,4 +1,4 @@
-"""The Wavin Sentio CCU-208 register map, as a modbus_event_connect model."""
+"""The Wavin Sentio CCU-208 register map, as a modbus_event_connect model, and its Modbus profile."""
 from __future__ import annotations
 
 import logging
@@ -9,7 +9,9 @@ from typing import Any
 from types import MappingProxyType
 
 from modbus_event_connect import (
+    Attempts,
     DataType,
+    Exponential,
     InstanceScanStep,
     Key,
     Labels,
@@ -20,16 +22,20 @@ from modbus_event_connect import (
     Quality,
     Refresh,
     RepeatedSection,
+    Retry,
     Scan,
     Section,
+    Timing,
     Unit,
     WriteKind,
 )
 from modbus_event_connect.modbus import (
+    BitWrite,
     DiscreteInput,
     HoldingRegister,
     InputRegister,
-    ModbusOptions,
+    ModbusProfile,
+    SingleWrite,
     plain,
 )
 
@@ -50,9 +56,6 @@ DEHUMIDIFIER_COUNT = 4
 """Dehumidifiers the address space defines. Dehumidifier N's registers start at 64900 + N * 100."""
 PERIPHERAL_COUNT = 64
 """Peripheral slots the address space defines. Slot N's registers start at 51100 + N * 100."""
-
-MAX_REGISTERS = 32
-"""The manual caps one request at 32 registers - well below the Modbus protocol's 125."""
 
 
 def room_base(room: int) -> int:
@@ -234,6 +237,12 @@ class PeripheralType(IntEnum):
     VH_250 = 0xE
     CCU_208 = 0x11E0
     """The control unit itself. Wider than a byte, hence a 16-bit register."""
+
+
+def model_name(kind: DeviceType | PeripheralType) -> str:
+    """The product a device or peripheral type stands for, as Wavin writes it, such as
+    "CCU-208"."""
+    return kind.name.replace("_", "-")
 
 
 class PumpState(IntEnum):
@@ -987,13 +996,11 @@ watched. Per the manual, standby and a room's setpoint, override, preset and vac
 standby temperatures decide it too.
 """
 
-REREAD_AFTER_WRITE = 0.5
-"""Seconds after a write before the groups it changes are read. Measured with the above."""
-
 
 def rereads(group: str, **where: int) -> Refresh:
-    """Read `group` again after a write: all of it, or the part `where` selects, as `room=n`."""
-    return Refresh(Labels(group=group, **where), after=REREAD_AFTER_WRITE)
+    """Read `group` again as long after a write as the write takes to show: all of it, or the
+    part `where` selects, as `room=n`."""
+    return Refresh(Labels(group=group, **where))
 
 
 # ================================================================================ encodings
@@ -1201,11 +1208,6 @@ def _setting(key: Key[float], register: int, *, unit: Unit | None = Unit.CELSIUS
     return _fp100(key, HoldingRegister(register), write=HoldingRegister(register), unit=unit)
 
 
-def _switch(key: Key[bool], register: int) -> Point[bool]:
-    """A val_u1 setting the manual gives as 0 and 1, read as off and on."""
-    return _flag(key, HoldingRegister(register))
-
-
 def _number[T](key: Key[T], register: int, *, maximum: int = 254, unit: Unit | None = None) -> Point[T]:
     """A val_u1 setting the manual gives as R/W, a number."""
     return _u8(key, HoldingRegister(register), write=HoldingRegister(register), maximum=maximum, unit=unit)
@@ -1250,7 +1252,7 @@ BUFFER_TANK_POINTS = _labelled([
     _setting(BufferTankPointKey.START_DIFFERENCE, 8317, unit=Unit.KELVIN),
     _setting(BufferTankPointKey.STOP_DIFFERENCE, 8318, unit=Unit.KELVIN),
     _choice(BufferTankPointKey.SENSOR_PRIORITY, HoldingRegister(8319)),
-    _switch(BufferTankPointKey.FLOW_BALANCING_ENABLE, 8320),
+    _flag(BufferTankPointKey.FLOW_BALANCING_ENABLE, HoldingRegister(8320)),
     _choice(BufferTankPointKey.CHARGE_MODE, HoldingRegister(8321)),
     _number(BufferTankPointKey.CHARGE_EVALUATION_DELAY, 8322, unit=Unit.MINUTES),
     *(_alarm(key, DiscreteInput(8300 + bit)) for bit, key in enumerate((
@@ -1293,16 +1295,16 @@ def itc(n: int) -> list[Point[Any]]:
         _choice(key(ItcPointKey.RETURN_LIMITER_FUNCTION), HoldingRegister(base + 26)),
         _setting(key(ItcPointKey.RETURN_MAX_LIMIT), base + 27),
         _fp10(key(ItcPointKey.RETURN_MAX_GAIN), HoldingRegister(base + 28), write=HoldingRegister(base + 28)),
-        _switch(key(ItcPointKey.RETURN_MAX_PRIORITY), base + 29),
+        _flag(key(ItcPointKey.RETURN_MAX_PRIORITY), HoldingRegister(base + 29)),
         _setting(key(ItcPointKey.RETURN_MIN_LIMIT), base + 30),
         _fp10(key(ItcPointKey.RETURN_MIN_GAIN), HoldingRegister(base + 31), write=HoldingRegister(base + 31)),
-        _switch(key(ItcPointKey.BOOST_ENABLE), base + 32),
+        _flag(key(ItcPointKey.BOOST_ENABLE), HoldingRegister(base + 32)),
         _number(key(ItcPointKey.BOOST_FLOW), base + 33),
-        _switch(key(ItcPointKey.RAMPING_ENABLE), base + 34),
+        _flag(key(ItcPointKey.RAMPING_ENABLE), HoldingRegister(base + 34)),
         _number(key(ItcPointKey.RAMPING_TIME), base + 35),
         _number(key(ItcPointKey.FROST_PROTECTION_MODE), base + 36),
         _setting(key(ItcPointKey.FROST_PROTECTION_TEMP), base + 37),
-        _switch(key(ItcPointKey.HIGH_TEMP_CUTOFF_ENABLE), base + 38),
+        _flag(key(ItcPointKey.HIGH_TEMP_CUTOFF_ENABLE), HoldingRegister(base + 38)),
         _setting(key(ItcPointKey.HIGH_TEMP_CUTOFF_TEMP), base + 39),
         _fp10(key(ItcPointKey.COOLING_REGULATOR_P), HoldingRegister(base + 40), write=HoldingRegister(base + 40)),
         _u16(key(ItcPointKey.COOLING_REGULATOR_I), HoldingRegister(base + 41), write=HoldingRegister(base + 41)),
@@ -1379,8 +1381,8 @@ def ventilation(n: int) -> list[Point[Any]]:
         flow(VentilationPointKey.SUPPLY_FLOW_ECO, 34),
         flow(VentilationPointKey.SUPPLY_FLOW_COMFORT, 35),
         flow(VentilationPointKey.SUPPLY_FLOW_BOOST, 36),
-        _switch(key(VentilationPointKey.ALLOW_STOPPED), base + 37),
-        _switch(key(VentilationPointKey.ALLOW_UNOCCUPIED), base + 38),
+        _flag(key(VentilationPointKey.ALLOW_STOPPED), HoldingRegister(base + 37)),
+        _flag(key(VentilationPointKey.ALLOW_UNOCCUPIED), HoldingRegister(base + 38)),
         _choice(key(VentilationPointKey.STANDBY_LEVEL), HoldingRegister(base + 39)),
         _choice(key(VentilationPointKey.VACATION_LEVEL), HoldingRegister(base + 40)),
         _choice(key(VentilationPointKey.HEAT_EXCHANGE_MODE), HoldingRegister(base + 41)),
@@ -1572,13 +1574,6 @@ async def find_the_objects(scan: Scan) -> None:
             scan.set_available(Labels(**{OBJECT: name}), False, reason=f"the controller has no {name}")
 
 
-async def scan_hcc(scan: Scan, n: int) -> None:
-    """Remove heating/cooling circuit `n` if the controller refuses its registers."""
-    state = hcc_key(n, HccPointKey.STATE)
-    if (await scan.read((state,)))[state].quality is Quality.MISSING:
-        scan.set_available(Labels(**{HCC: n}), False, reason="the controller has no such circuit")
-
-
 def _scan_instance(label: str, key: Callable[[int], Key[Any]], what: str) -> InstanceScanStep:
     """A scan that removes instance n of `label` when the controller refuses `key(n)`."""
     async def scan_it(scan: Scan, n: int) -> None:
@@ -1588,6 +1583,7 @@ def _scan_instance(label: str, key: Callable[[int], Key[Any]], what: str) -> Ins
     return scan_it
 
 
+scan_hcc = _scan_instance(HCC, lambda n: hcc_key(n, HccPointKey.STATE), "circuit")
 scan_itc = _scan_instance(ITC, lambda n: itc_key(n, ItcPointKey.STATE), "ITC")
 scan_ventilation = _scan_instance(VENTILATION, lambda n: ventilation_key(n, VentilationPointKey.STATE),
                                   "ventilation unit")
@@ -1630,10 +1626,9 @@ async def scan_peripheral(scan: Scan, slot: int) -> None:
         scan.set_available(Labels(peripheral=slot), False, reason="no peripheral in this slot")
         return
     if found.quality is Quality.GOOD and isinstance(found.value, PeripheralType):
-        model = found.value.name.replace("_", "-")
         for point in NOT_SUPPORTED.get(found.value, frozenset()):
             scan.set_available((peripheral_key(slot, point),), False,
-                               reason=f"{model} has no {point.name.replace('_', ' ')}")
+                               reason=f"{model_name(found.value)} has no {point.name.replace('_', ' ')}")
     await scan.read((peripheral_key(slot, PeripheralPointKey.SERIAL_NUMBER),
                      peripheral_key(slot, PeripheralPointKey.OWNER)))
 
@@ -1641,8 +1636,8 @@ async def scan_peripheral(scan: Scan, slot: int) -> None:
 SENTIO = Model(
     name="Sentio",
     manufacturer="Wavin",
-    options=ModbusOptions(numbering=plain(first_address=1), max_registers=MAX_REGISTERS),  # verified live
-    read_back_after=0.5,  # measured with testing.measure_read_back on a CCU-208, address space 3.7
+    # read_back_after measured with testing.measure_read_back on a CCU-208, address space 3.7.
+    timing=Timing(read_back_after=0.5, offline_after=30.0),
     sections=[
         Section(LOCATION),
         RepeatedSection(room, range(1, ROOM_COUNT + 1), label=ROOM, scan=scan_room),
@@ -1661,3 +1656,15 @@ SENTIO = Model(
     ],
     scan_steps=[check_the_controller, find_the_objects],
 )
+"""The Wavin Sentio: its rooms, peripherals and objects, and how often each is read."""
+
+SENTIO_MODBUS = ModbusProfile(
+    model=SENTIO,
+    numbering=plain(first_address=1),  # the manual's addresses are sent as they are; verified live
+    max_registers=32,  # the manual caps one request at 32 registers
+    max_bits=256,  # the manual: "32 registers or 256 bits" per request
+    single_write=SingleWrite.FC06,
+    bit_write=BitWrite.MASK,
+    busy=Retry(Exponential(0.2), Attempts(5)),
+)
+"""How the Sentio is talked to over Modbus TCP."""

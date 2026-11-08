@@ -3,20 +3,26 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from modbus_event_connect import Client, Clock, Exponential, Key, Retry
-from modbus_event_connect.modbus import ModbusConnection, ModbusDevice
+from modbus_event_connect import NO_RETRY, CircuitBreaker, Client, Clock, Exponential, Key, Retry
+from modbus_event_connect.modbus import ModbusConnection, ModbusDevice, ModbusTcpConnection
 
 from ._model import (
     PERIPHERAL,
     ROOM,
     SENTIO,
+    SENTIO_MODBUS,
+    LocationPointKey,
     PeripheralPointKey,
     PeripheralType,
     RoomPointKey,
     RoomType,
+    model_name,
     peripheral_key,
     room_key,
 )
+
+PROFILES = [SENTIO_MODBUS]
+"""The profile of every model a Sentio controller may be."""
 
 DEFAULT_PORT = 502
 """The Modbus TCP port, per the manual."""
@@ -25,33 +31,36 @@ DEFAULT_UNIT_ID = 1
 
 
 def create_client(host: str, *, port: int = DEFAULT_PORT, unit_id: int = DEFAULT_UNIT_ID,
-                  read_only: bool = False, clock: Clock | None = None, write_retry_for: float = 0.0) -> Client:
+                  read_only: bool = False, clock: Clock | None = None) -> Client:
     """A client for the Sentio at `host`, with its own connection; call `connect()` on it.
 
-    A controller that stopped answering is asked again after 2, 4 and 8 s, then every 10 s, which
-    opens its link again.
+    Once three requests in a row went unanswered, the controller is asked again after 2, 4 and
+    8 s, then every 10 s, which opens its link again. A write is sent once.
 
     Args:
         read_only: refuse every write before it reaches the controller.
-        write_retry_for: seconds after its first sending that a write the controller answered
-            busy is still sent again; 0 sends every write once.
     """
-    # Every 10 s at most is as often as the controller is read while it answers.
-    reconnect = Retry(Exponential(2.0, max=10.0))
-    return Client(ModbusDevice.tcp(host, port, unit_id, reconnect=reconnect, clock=clock), SENTIO,
-                  clock=clock, read_only=read_only, write_retry_for=write_retry_for)
+    return _client(ModbusTcpConnection(host, port, clock=clock), unit_id, owns_connection=True,
+                   read_only=read_only, clock=clock)
 
 
 def create_client_on(connection: ModbusConnection, *, unit_id: int = DEFAULT_UNIT_ID, read_only: bool = False,
-                     clock: Clock | None = None, write_retry_for: float = 0.0) -> Client:
+                     clock: Clock | None = None) -> Client:
     """A client on a connection the host already owns - a gateway shared with other devices.
 
-    The controller is asked again, and `read_only` and `write_retry_for` are, as for
-    `create_client`.
+    The controller is asked again, a write is sent, and `read_only` is, as for `create_client`;
+    the client's `disconnect()` leaves the connection open.
     """
-    reconnect = Retry(Exponential(2.0, max=10.0))
-    return Client(ModbusDevice(connection, unit_id, reconnect=reconnect, clock=clock), SENTIO,
-                  clock=clock, read_only=read_only, write_retry_for=write_retry_for)
+    return _client(connection, unit_id, owns_connection=False, read_only=read_only, clock=clock)
+
+
+def _client(connection: ModbusConnection, unit_id: int, *, owns_connection: bool, read_only: bool,
+            clock: Clock | None) -> Client:
+    # Every 10 s at most is as often as the controller is read while it answers.
+    reconnect = CircuitBreaker(after=3, retry=Retry(Exponential(2.0, max=10.0)))
+    device = ModbusDevice(connection, unit_id, reconnect=reconnect, profiles=PROFILES,
+                          owns_connection=owns_connection, clock=clock)
+    return Client(device, SENTIO, write_retry=NO_RETRY, clock=clock, read_only=read_only)
 
 
 # ============================================================================ installation
@@ -83,7 +92,14 @@ class SentioPeripheral:
     @property
     def model(self) -> str:
         """A readable model name, such as "RT-250", or "unknown"."""
-        return self.type.name.replace("_", "-") if self.type is not None else "unknown"
+        return model_name(self.type) if self.type is not None else "unknown"
+
+
+def controller_model(client: Client) -> str | None:
+    """The controller's model as it reports it, such as "CCU-208", from the value read during
+    connect(); None if it reported none."""
+    found = _value(client, LocationPointKey.DEVICE_TYPE)
+    return model_name(found) if found is not None else None
 
 
 def rooms(client: Client) -> list[SentioRoom]:

@@ -21,13 +21,13 @@ from typing import Any
 import pytest
 import pytest_asyncio
 from modbus_event_connect import Client, DataValue, Key, Quality, ReadOnlyError, Unit
-from modbus_event_connect.modbus import FunctionCode, ModbusDevice, ModbusTcpConnection, Request
+from modbus_event_connect.modbus import FunctionCode, ModbusTcpConnection, Request
 
 from conftest import live_or_skip, live_setting
 from wavin_sentio_connect import (
-    SENTIO,
     LocationPointKey,
     RoomPointKey,
+    create_client_on,
     peripherals,
     room_key,
     rooms,
@@ -53,7 +53,7 @@ class Live:
 async def live() -> AsyncGenerator[Live, None]:
     assert HOST is not None   # guarded by the skip above
     connection = ModbusTcpConnection(HOST, PORT)
-    client = Client(ModbusDevice(connection, UNIT_ID, owns_connection=True, reconnect=None), SENTIO, read_only=True)
+    client = create_client_on(connection, unit_id=UNIT_ID, read_only=True)
     try:
         await client.connect()
     except Exception as err:
@@ -64,6 +64,7 @@ async def live() -> AsyncGenerator[Live, None]:
             f"  - Some controllers answer on unit id 255: set SENTIO_UNIT_ID=255")
     yield Live(client=client, connection=connection)
     await client.disconnect()
+    await connection.close()
 
 
 def _good[T](client: Client, key: Key[T]) -> T | None:
