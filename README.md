@@ -16,7 +16,7 @@ pip install wavin-sentio-connect
 ```
 
 Everything you use comes from `wavin_sentio_connect`: the client and its values, the errors, the
-connection a controller can share, and, in `wavin_sentio_connect.testing`, a simulated controller
+model and its profile, the connection a controller can share, and, in `wavin_sentio_connect.testing`, a simulated controller
 for your own tests. modbus_event_connect is installed with it; nothing needs importing from it.
 
 ## Enabling Modbus on the controller
@@ -126,9 +126,9 @@ await client.write(room_key(1, RoomPointKey.LOCK), RoomLock.HOTEL)   # LOCKED / 
 - A controller that stops answering is no longer asked once 3 requests in a row went unanswered,
   then asked again after 2, 4 and 8 s and every 10 s after that, which opens its link again.
 - The controller answers `SERVER_DEVICE_BUSY` (`0x06`) while it stores a change; the manual says
-  such a request "shall be repeated again". A read is, with backoff. A write answered busy is
-  reported as not taken; `create_client(..., write_retry_for=seconds)` sends it again until
-  that many seconds have passed since it was first sent.
+  such a request "shall be repeated again". A read is, up to four times more, 0.2 s after the
+  first and twice as long before each next. A write answered busy is sent once, and reported as
+  not taken.
 - `client.status(Status.WRITE_PENDING)` - which `client.subscribe_status` follows - is true from
   the moment a write is asked for until the last one has finished.
 
@@ -195,7 +195,10 @@ the number the controller sent. Standby, vacation and daylight saving, which the
 0 and 1, are `bool`; their "no value", 255, reads as `NO_DATA` too.
 
 The model is in [`_model.py`](https://github.com/HairingX/wavin_sentio_connect/blob/main/src/wavin_sentio_connect/_model.py); every key is declared there
-with its address and encoding.
+with its address and encoding. `SENTIO` is the model: what the controller has, how often each
+value is read, and the half second a write takes to show. Beside it, `SENTIO_MODBUS` is its
+profile, how it is talked to over Modbus: the manual's addresses sent as they are, at most 32
+registers in one read, and a busy read asked again. `PROFILES` lists it.
 
 The manual's "Modbus Address" column holds the addresses themselves, so its numbers are used unchanged:
 

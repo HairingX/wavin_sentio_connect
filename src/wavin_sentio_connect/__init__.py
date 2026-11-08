@@ -1,8 +1,8 @@
 """Wavin Sentio over Modbus TCP, built on modbus_event_connect.
 
 Everything a user of a Sentio needs is here, so that nothing has to be imported from
-modbus_event_connect: the client and its values, what a point is, the errors, and the connection
-a controller can share.
+modbus_event_connect: the client and its values, what a point is, the errors, the model and its
+profile, and the connection a controller can share.
 """
 from importlib.metadata import version as _installed_version
 
@@ -52,6 +52,7 @@ from ._model import (
     PERIPHERAL,
     ROOM,
     SENTIO,
+    SENTIO_MODBUS,
     THERMISTOR_INPUTS,
     UNITS,
     VENTILATION,
@@ -109,6 +110,7 @@ from ._model import (
 from ._sentio import (
     DEFAULT_PORT,
     DEFAULT_UNIT_ID,
+    PROFILES,
     SentioPeripheral,
     SentioRoom,
     create_client,
@@ -155,6 +157,8 @@ __all__ = [
     "PERIPHERAL",
     "ROOM",
     "SENTIO",
+    "SENTIO_MODBUS",
+    "PROFILES",
     "UNITS",
     "BlockingSource",
     "DeviceType",

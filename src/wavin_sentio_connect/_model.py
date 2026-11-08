@@ -1,4 +1,4 @@
-"""The Wavin Sentio CCU-208 register map, as a modbus_event_connect model."""
+"""The Wavin Sentio CCU-208 register map, as a modbus_event_connect model, and its Modbus profile."""
 from __future__ import annotations
 
 import logging
@@ -9,7 +9,9 @@ from typing import Any
 from types import MappingProxyType
 
 from modbus_event_connect import (
+    Attempts,
     DataType,
+    Exponential,
     InstanceScanStep,
     Key,
     Labels,
@@ -20,16 +22,20 @@ from modbus_event_connect import (
     Quality,
     Refresh,
     RepeatedSection,
+    Retry,
     Scan,
     Section,
+    Timing,
     Unit,
     WriteKind,
 )
 from modbus_event_connect.modbus import (
+    BitWrite,
     DiscreteInput,
     HoldingRegister,
     InputRegister,
-    ModbusOptions,
+    ModbusProfile,
+    SingleWrite,
     plain,
 )
 
@@ -50,9 +56,6 @@ DEHUMIDIFIER_COUNT = 4
 """Dehumidifiers the address space defines. Dehumidifier N's registers start at 64900 + N * 100."""
 PERIPHERAL_COUNT = 64
 """Peripheral slots the address space defines. Slot N's registers start at 51100 + N * 100."""
-
-MAX_REGISTERS = 32
-"""The manual caps one request at 32 registers - well below the Modbus protocol's 125."""
 
 
 def room_base(room: int) -> int:
@@ -1641,8 +1644,8 @@ async def scan_peripheral(scan: Scan, slot: int) -> None:
 SENTIO = Model(
     name="Sentio",
     manufacturer="Wavin",
-    options=ModbusOptions(numbering=plain(first_address=1), max_registers=MAX_REGISTERS),  # verified live
-    read_back_after=0.5,  # measured with testing.measure_read_back on a CCU-208, address space 3.7
+    # read_back_after measured with testing.measure_read_back on a CCU-208, address space 3.7.
+    timing=Timing(read_back_after=0.5, offline_after=30.0),
     sections=[
         Section(LOCATION),
         RepeatedSection(room, range(1, ROOM_COUNT + 1), label=ROOM, scan=scan_room),
@@ -1661,3 +1664,15 @@ SENTIO = Model(
     ],
     scan_steps=[check_the_controller, find_the_objects],
 )
+"""The Wavin Sentio: its rooms, peripherals and objects, and how often each is read."""
+
+SENTIO_MODBUS = ModbusProfile(
+    model=SENTIO,
+    numbering=plain(first_address=1),  # the manual's addresses are sent as they are; verified live
+    max_registers=32,  # the manual caps one request at 32 registers
+    max_bits=2000,  # the manual allows 256, more than any run of the Sentio's discrete inputs
+    single_write=SingleWrite.FC06,
+    bit_write=BitWrite.MASK,
+    busy=Retry(Exponential(0.2), Attempts(5)),
+)
+"""How the Sentio is talked to over Modbus TCP."""
