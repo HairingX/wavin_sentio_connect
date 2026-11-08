@@ -1202,11 +1202,6 @@ def _setting(key: Key[float], register: int, *, unit: Unit | None = Unit.CELSIUS
     return _fp100(key, HoldingRegister(register), write=HoldingRegister(register), unit=unit)
 
 
-def _switch(key: Key[bool], register: int) -> Point[bool]:
-    """A val_u1 setting the manual gives as 0 and 1, read as off and on."""
-    return _flag(key, HoldingRegister(register))
-
-
 def _number[T](key: Key[T], register: int, *, maximum: int = 254, unit: Unit | None = None) -> Point[T]:
     """A val_u1 setting the manual gives as R/W, a number."""
     return _u8(key, HoldingRegister(register), write=HoldingRegister(register), maximum=maximum, unit=unit)
@@ -1251,7 +1246,7 @@ BUFFER_TANK_POINTS = _labelled([
     _setting(BufferTankPointKey.START_DIFFERENCE, 8317, unit=Unit.KELVIN),
     _setting(BufferTankPointKey.STOP_DIFFERENCE, 8318, unit=Unit.KELVIN),
     _choice(BufferTankPointKey.SENSOR_PRIORITY, HoldingRegister(8319)),
-    _switch(BufferTankPointKey.FLOW_BALANCING_ENABLE, 8320),
+    _flag(BufferTankPointKey.FLOW_BALANCING_ENABLE, HoldingRegister(8320)),
     _choice(BufferTankPointKey.CHARGE_MODE, HoldingRegister(8321)),
     _number(BufferTankPointKey.CHARGE_EVALUATION_DELAY, 8322, unit=Unit.MINUTES),
     *(_alarm(key, DiscreteInput(8300 + bit)) for bit, key in enumerate((
@@ -1294,16 +1289,16 @@ def itc(n: int) -> list[Point[Any]]:
         _choice(key(ItcPointKey.RETURN_LIMITER_FUNCTION), HoldingRegister(base + 26)),
         _setting(key(ItcPointKey.RETURN_MAX_LIMIT), base + 27),
         _fp10(key(ItcPointKey.RETURN_MAX_GAIN), HoldingRegister(base + 28), write=HoldingRegister(base + 28)),
-        _switch(key(ItcPointKey.RETURN_MAX_PRIORITY), base + 29),
+        _flag(key(ItcPointKey.RETURN_MAX_PRIORITY), HoldingRegister(base + 29)),
         _setting(key(ItcPointKey.RETURN_MIN_LIMIT), base + 30),
         _fp10(key(ItcPointKey.RETURN_MIN_GAIN), HoldingRegister(base + 31), write=HoldingRegister(base + 31)),
-        _switch(key(ItcPointKey.BOOST_ENABLE), base + 32),
+        _flag(key(ItcPointKey.BOOST_ENABLE), HoldingRegister(base + 32)),
         _number(key(ItcPointKey.BOOST_FLOW), base + 33),
-        _switch(key(ItcPointKey.RAMPING_ENABLE), base + 34),
+        _flag(key(ItcPointKey.RAMPING_ENABLE), HoldingRegister(base + 34)),
         _number(key(ItcPointKey.RAMPING_TIME), base + 35),
         _number(key(ItcPointKey.FROST_PROTECTION_MODE), base + 36),
         _setting(key(ItcPointKey.FROST_PROTECTION_TEMP), base + 37),
-        _switch(key(ItcPointKey.HIGH_TEMP_CUTOFF_ENABLE), base + 38),
+        _flag(key(ItcPointKey.HIGH_TEMP_CUTOFF_ENABLE), HoldingRegister(base + 38)),
         _setting(key(ItcPointKey.HIGH_TEMP_CUTOFF_TEMP), base + 39),
         _fp10(key(ItcPointKey.COOLING_REGULATOR_P), HoldingRegister(base + 40), write=HoldingRegister(base + 40)),
         _u16(key(ItcPointKey.COOLING_REGULATOR_I), HoldingRegister(base + 41), write=HoldingRegister(base + 41)),
@@ -1380,8 +1375,8 @@ def ventilation(n: int) -> list[Point[Any]]:
         flow(VentilationPointKey.SUPPLY_FLOW_ECO, 34),
         flow(VentilationPointKey.SUPPLY_FLOW_COMFORT, 35),
         flow(VentilationPointKey.SUPPLY_FLOW_BOOST, 36),
-        _switch(key(VentilationPointKey.ALLOW_STOPPED), base + 37),
-        _switch(key(VentilationPointKey.ALLOW_UNOCCUPIED), base + 38),
+        _flag(key(VentilationPointKey.ALLOW_STOPPED), HoldingRegister(base + 37)),
+        _flag(key(VentilationPointKey.ALLOW_UNOCCUPIED), HoldingRegister(base + 38)),
         _choice(key(VentilationPointKey.STANDBY_LEVEL), HoldingRegister(base + 39)),
         _choice(key(VentilationPointKey.VACATION_LEVEL), HoldingRegister(base + 40)),
         _choice(key(VentilationPointKey.HEAT_EXCHANGE_MODE), HoldingRegister(base + 41)),
@@ -1573,13 +1568,6 @@ async def find_the_objects(scan: Scan) -> None:
             scan.set_available(Labels(**{OBJECT: name}), False, reason=f"the controller has no {name}")
 
 
-async def scan_hcc(scan: Scan, n: int) -> None:
-    """Remove heating/cooling circuit `n` if the controller refuses its registers."""
-    state = hcc_key(n, HccPointKey.STATE)
-    if (await scan.read((state,)))[state].quality is Quality.MISSING:
-        scan.set_available(Labels(**{HCC: n}), False, reason="the controller has no such circuit")
-
-
 def _scan_instance(label: str, key: Callable[[int], Key[Any]], what: str) -> InstanceScanStep:
     """A scan that removes instance n of `label` when the controller refuses `key(n)`."""
     async def scan_it(scan: Scan, n: int) -> None:
@@ -1589,6 +1577,7 @@ def _scan_instance(label: str, key: Callable[[int], Key[Any]], what: str) -> Ins
     return scan_it
 
 
+scan_hcc = _scan_instance(HCC, lambda n: hcc_key(n, HccPointKey.STATE), "circuit")
 scan_itc = _scan_instance(ITC, lambda n: itc_key(n, ItcPointKey.STATE), "ITC")
 scan_ventilation = _scan_instance(VENTILATION, lambda n: ventilation_key(n, VentilationPointKey.STATE),
                                   "ventilation unit")
