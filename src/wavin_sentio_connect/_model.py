@@ -1662,7 +1662,7 @@ SENTIO_MODBUS = ModbusProfile(
     model=SENTIO,
     numbering=plain(first_address=1),  # the manual's addresses are sent as they are; verified live
     max_registers=32,  # the manual caps one request at 32 registers
-    max_bits=2000,  # the manual allows 256, more than any run of the Sentio's discrete inputs
+    max_bits=256,  # the manual: "32 registers or 256 bits" per request
     single_write=SingleWrite.FC06,
     bit_write=BitWrite.MASK,
     busy=Retry(Exponential(0.2), Attempts(5)),

@@ -859,3 +859,7 @@ def test_a_read_only_client_never_writes() -> None:
     with pytest.raises(ReadOnlyError):
         asyncio.run(client.write(room_key(1, RoomPointKey.TEMP_AIR_TARGET), 22.0))
     assert not [r for _, r in gateway.requests if not r.function.is_read]
+
+
+def test_a_request_asks_for_no_more_than_the_manual_allows() -> None:
+    assert (SENTIO_MODBUS.max_registers, SENTIO_MODBUS.max_bits) == (32, 256)
