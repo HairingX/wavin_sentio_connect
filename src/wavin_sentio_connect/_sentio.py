@@ -3,17 +3,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from modbus_event_connect import NO_RETRY, CircuitBreaker, Client, Clock, Exponential, Key, Retry
-from modbus_event_connect.modbus import ModbusConnection, ModbusDevice, ModbusTcpConnection
+from modbus_event_connect import CircuitBreaker, Client, Clock, Exponential, Key, Retry
+from modbus_event_connect.modbus import PORT, ModbusConnection, ModbusDevice, ModbusTcpConnection
 
 from ._model import (
     PERIPHERAL,
     ROOM,
     SENTIO,
-    SENTIO_MODBUS,
-    LocationPointKey,
     PeripheralPointKey,
     PeripheralType,
+    LocationPointKey,
     RoomPointKey,
     RoomType,
     model_name,
@@ -21,46 +20,53 @@ from ._model import (
     room_key,
 )
 
-PROFILES = [SENTIO_MODBUS]
-"""The profile of every model a Sentio controller may be."""
-
-DEFAULT_PORT = 502
-"""The Modbus TCP port, per the manual."""
+DEFAULT_PORT = PORT
+"""The Modbus TCP port."""
 DEFAULT_UNIT_ID = 1
-"""The manual gives 255 for Modbus TCP "if needed"."""
+"""The unit id a Sentio answers on over Modbus TCP: the manual gives 255 "if needed", and the
+owner's CCU-208 answers on 1."""
+
+_CONNECT_TIMEOUT = 3.0  # guess
+_FRAME_GAP = 0.0  # guess
+_TIMEOUT_MARGIN = 2.5  # guess: with the Sentio's 0.5 s, a request waits 3.0 s
+_RECONNECT = CircuitBreaker(
+    after=3,  # guess
+    retry=Retry(Exponential(2.0, factor=2.0, max=10.0), None),  # guess
+)
+_OFFLINE_AFTER_INTERVALS = 3  # guess: 30 s at FAST
 
 
-def create_client(host: str, *, port: int = DEFAULT_PORT, unit_id: int = DEFAULT_UNIT_ID,
-                  read_only: bool = False, clock: Clock | None = None) -> Client:
+def create_client(*, host: str, unit_id: int, port: int = DEFAULT_PORT, read_only: bool = False,
+                  clock: Clock | None = None) -> Client:
     """A client for the Sentio at `host`, with its own connection; call `connect()` on it.
 
-    Once three requests in a row went unanswered, the controller is asked again after 2, 4 and
-    8 s, then every 10 s, which opens its link again. A write is sent once.
+    A controller that stops answering is asked again less and less often, and never given up on;
+    a request it answers busy is sent again, as its manual asks.
 
     Args:
         read_only: refuse every write before it reaches the controller.
     """
-    return _client(ModbusTcpConnection(host, port, clock=clock), unit_id, owns_connection=True,
-                   read_only=read_only, clock=clock)
+    connection = ModbusTcpConnection(host, port, connect_timeout=_CONNECT_TIMEOUT, frame_gap=_FRAME_GAP,
+                                     clock=clock)
+    return _client(connection, unit_id, owns_connection=True, read_only=read_only, clock=clock)
 
 
-def create_client_on(connection: ModbusConnection, *, unit_id: int = DEFAULT_UNIT_ID, read_only: bool = False,
+def create_client_on(connection: ModbusConnection, *, unit_id: int, read_only: bool = False,
                      clock: Clock | None = None) -> Client:
     """A client on a connection the host already owns - a gateway shared with other devices.
 
-    The controller is asked again, a write is sent, and `read_only` is, as for `create_client`;
-    the client's `disconnect()` leaves the connection open.
+    It behaves as one from `create_client`, except that its `disconnect()` leaves the connection
+    open.
     """
     return _client(connection, unit_id, owns_connection=False, read_only=read_only, clock=clock)
 
 
 def _client(connection: ModbusConnection, unit_id: int, *, owns_connection: bool, read_only: bool,
             clock: Clock | None) -> Client:
-    # Every 10 s at most is as often as the controller is read while it answers.
-    reconnect = CircuitBreaker(after=3, retry=Retry(Exponential(2.0, max=10.0)))
-    device = ModbusDevice(connection, unit_id, reconnect=reconnect, profiles=PROFILES,
-                          owns_connection=owns_connection, clock=clock)
-    return Client(device, SENTIO, write_retry=NO_RETRY, clock=clock, read_only=read_only)
+    device = ModbusDevice(connection, unit_id, reconnect=_RECONNECT, models=(SENTIO,),
+                          timeout_margin=_TIMEOUT_MARGIN, owns_connection=owns_connection, clock=clock)
+    return Client(device, SENTIO, offline_after_intervals=_OFFLINE_AFTER_INTERVALS, read_only=read_only,
+                  clock=clock)
 
 
 # ============================================================================ installation

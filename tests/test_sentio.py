@@ -1,6 +1,7 @@
 """The Sentio model and client against a simulated controller: rooms 1 and 3 (3 a dummy),
 peripherals 1 and 2, nothing else - exactly what the scan must find."""
 import asyncio
+import dataclasses
 import inspect
 import logging
 from collections.abc import Callable
@@ -17,10 +18,17 @@ from modbus_event_connect import (
     PollRate,
     Quality,
     ReadOnlyError,
-    Timing,
     Unit,
 )
-from modbus_event_connect.modbus import FunctionCode, ModbusConnection, Request, Response
+from modbus_event_connect.modbus import (
+    DiscreteInput,
+    FunctionCode,
+    HoldingRegister,
+    InputRegister,
+    ModbusConnection,
+    Request,
+    Response,
+)
 from modbus_event_connect.testing import (
     FakeClock,
     SimulatedModbusDevice,
@@ -30,10 +38,9 @@ from modbus_event_connect.testing import (
 )
 
 from wavin_sentio_connect import (
-    PROFILES,
     SENTIO,
-    SENTIO_MODBUS,
     UNITS,
+    DeviceClient,
     BoilerHeatPumpPointKey,
     BufferTankPointKey,
     DehumidifierPointKey,
@@ -169,7 +176,7 @@ def _add_objects(unit: SimulatedModbusDevice) -> None:
 def _connected(*, read_only: bool = False,
                unit: SimulatedModbusDevice | None = None) -> tuple[Client, SimulatedModbusGateway]:
     gateway = SimulatedModbusGateway({1: unit or _installation()})
-    client = create_client_on(gateway, read_only=read_only)
+    client = create_client_on(gateway, unit_id=1, read_only=read_only)
     asyncio.run(client.connect())
     return client, gateway
 
@@ -177,11 +184,11 @@ def _connected(*, read_only: bool = False,
 # ================================================================================== model
 
 def test_the_model_is_valid() -> None:
-    assert_models_valid([SENTIO], PROFILES, identities=[{}])
+    assert_models_valid([SENTIO], identities=[{}])
 
 
 def test_the_model_has_every_room_and_slot_the_address_space_defines() -> None:
-    resolved = resolve(SENTIO_MODBUS, {})
+    resolved = resolve(SENTIO, {})
     assert resolved.instances["room"] == tuple(range(1, 17))
     assert resolved.instances["peripheral"] == tuple(range(1, 65))
     assert resolved.instances["hcc"] == (1, 2, 3)
@@ -207,12 +214,12 @@ def test_every_key_is_one_named_value_and_every_named_value_is_a_key() -> None:
         *(dehumidifier_key(n, point) for n in range(1, DEHUMIDIFIER_COUNT + 1)
           for point in DehumidifierPointKey.all())]
     assert len(set(named)) == len(named)
-    assert set(named) == set(resolve(SENTIO_MODBUS, {}).points)
+    assert set(named) == set(resolve(SENTIO, {}).points)
 
 
 def test_every_key_names_the_type_its_point_holds() -> None:
     """The model builds each point from its key, so a key and its point cannot disagree."""
-    points = resolve(SENTIO_MODBUS, {}).points
+    points = resolve(SENTIO, {}).points
     assert all(points[key].key.type is key.type for key in LocationPointKey.all())
     assert all(points[room_key(1, point)].key.type is point.type for point in RoomPointKey.all())
     assert all(points[peripheral_key(1, point)].key.type is point.type for point in PeripheralPointKey.all())
@@ -277,12 +284,12 @@ def test_the_key_strings_never_change() -> None:
 
 
 def test_units_are_exactly_the_units_the_model_uses() -> None:
-    assert UNITS == {point.unit for point in resolve(SENTIO_MODBUS, {}).points.values() if point.unit is not None}
+    assert UNITS == {point.unit for point in resolve(SENTIO, {}).points.values() if point.unit is not None}
 
 
 def test_the_regulated_target_and_the_users_setting_are_two_points() -> None:
     """Only a datapoint/setpoint prefix distinguishes the regulated target from the user's setting."""
-    resolved = resolve(SENTIO_MODBUS, {})
+    resolved = resolve(SENTIO, {})
     active, setting = resolved.point("room_1_temp_air_target_active"), resolved.point("room_1_temp_air_target")
     assert active.read != setting.read
     assert not active.writable and setting.writable
@@ -297,11 +304,11 @@ def test_the_regulated_target_and_the_users_setting_are_two_points() -> None:
     ("datetime_unix", Unit.SECONDS),
 ])
 def test_every_value_carries_the_right_unit(key: str, unit: Unit) -> None:
-    assert resolve(SENTIO_MODBUS, {}).point(key).unit is unit
+    assert resolve(SENTIO, {}).point(key).unit is unit
 
 
 def test_text_is_sixteen_registers_and_temperatures_are_signed_hundredths() -> None:
-    resolved = resolve(SENTIO_MODBUS, {})
+    resolved = resolve(SENTIO, {})
     assert resolved.point("location_name").data_type.kind is DataTypeKind.STRING
     assert resolved.point("location_name").registers == 16
     temp = resolved.point("room_1_temp_air_current")
@@ -310,7 +317,7 @@ def test_text_is_sixteen_registers_and_temperatures_are_signed_hundredths() -> N
 
 
 def test_the_room_lock_is_a_closed_set() -> None:
-    assert resolve(SENTIO_MODBUS, {}).point("room_1_lock").key.type is RoomLock
+    assert resolve(SENTIO, {}).point("room_1_lock").key.type is RoomLock
     assert {member.value for member in RoomLock} == {8, 16, 32}
 
 
@@ -320,11 +327,11 @@ def test_the_room_lock_is_a_closed_set() -> None:
     ("temp_air_target", PollRate.SLOW), ("type", PollRate.STATIC),
 ])
 def test_what_a_room_is_doing_is_read_faster_than_how_warm_it_is(name: str, poll_rate: PollRate) -> None:
-    assert resolve(SENTIO_MODBUS, {}).point(f"room_1_{name}").poll_rate is poll_rate
+    assert resolve(SENTIO, {}).point(f"room_1_{name}").poll_rate is poll_rate
 
 
 def test_every_alarm_is_a_bit_read_rarely_by_itself() -> None:
-    resolved = resolve(SENTIO_MODBUS, {})
+    resolved = resolve(SENTIO, {})
     alarms = resolved.select(sentio_model.ALARM)
     assert {p.key for p in alarms if p.key.startswith("room_1_")} == {
         "room_1_warning", "room_1_error", "room_1_low_battery", "room_1_peripheral_lost"}
@@ -334,7 +341,7 @@ def test_every_alarm_is_a_bit_read_rarely_by_itself() -> None:
 
 
 def test_the_systems_summary_is_always_polled_and_reads_the_alarms_when_it_changes() -> None:
-    resolved = resolve(SENTIO_MODBUS, {})
+    resolved = resolve(SENTIO, {})
     for key in ("system_warning", "system_error"):
         summary = resolved.point(key)
         assert summary.poll_always and summary.poll_rate is PollRate.FAST
@@ -344,7 +351,7 @@ def test_the_systems_summary_is_always_polled_and_reads_the_alarms_when_it_chang
 def test_a_raised_alarm_is_reported_without_waiting_for_its_own_schedule() -> None:
     unit = _installation()
     clock = FakeClock()
-    client = create_client_on(SimulatedModbusGateway({1: unit}), clock=clock)
+    client = create_client_on(SimulatedModbusGateway({1: unit}), unit_id=1, clock=clock)
     asyncio.run(client.connect())
     seen: list[object] = []
     client.subscribe(room_key(1, RoomPointKey.LOW_BATTERY), lambda key, old, new: seen.append(new.value))
@@ -363,7 +370,7 @@ def test_a_raised_alarm_is_reported_without_waiting_for_its_own_schedule() -> No
     ("room_1_mode", Labels(group="room_target", room=1)),
 ])
 def test_a_write_that_changes_room_targets_reads_them_again(key: str, targets: Labels) -> None:
-    resolved = resolve(SENTIO_MODBUS, {})
+    resolved = resolve(SENTIO, {})
     effect = resolved.point(key).on_write
     assert effect is not None and effect.targets == targets
     assert [p.key for p in resolved.select(targets)][:1] == ["room_1_temp_air_target_active"]
@@ -372,7 +379,7 @@ def test_a_write_that_changes_room_targets_reads_them_again(key: str, targets: L
 def test_writing_vacation_updates_every_rooms_target_without_waiting_for_its_poll() -> None:
     unit = _installation()
     clock = FakeClock()
-    client = create_client_on(SimulatedModbusGateway({1: unit}), clock=clock)
+    client = create_client_on(SimulatedModbusGateway({1: unit}), unit_id=1, clock=clock)
     asyncio.run(client.connect())
     seen: list[object] = []
     client.subscribe(room_key(1, RoomPointKey.TEMP_AIR_TARGET_ACTIVE), lambda key, old, new: seen.append(new.value))
@@ -385,13 +392,13 @@ def test_writing_vacation_updates_every_rooms_target_without_waiting_for_its_pol
 
 def test_what_a_write_changes_is_read_once_the_write_shows_however_long_that_is() -> None:
     """The time a write takes to show is measured once, for the controller as a whole."""
-    timing = Timing(read_back_after=2.0)
-    written = [p for p in resolve(SENTIO_MODBUS, {}).points.values() if p.on_write is not None]
+    timing = dataclasses.replace(SENTIO, read_back_after=2.0).timing
+    written = [p for p in resolve(SENTIO, {}).points.values() if p.on_write is not None]
     assert written and all(timing.on_write_delay(point) == 2.0 for point in written)
 
 
 def test_a_peripherals_signal_strength_is_read_rarely() -> None:
-    assert resolve(SENTIO_MODBUS, {}).point("peripheral_1_signal_strength").poll_rate is PollRate.RARE
+    assert resolve(SENTIO, {}).point("peripheral_1_signal_strength").poll_rate is PollRate.RARE
 
 
 # ================================================================================== scan
@@ -463,8 +470,23 @@ def test_an_old_address_space_is_warned_about() -> None:
 
 def test_a_client_is_created_from_what_differs_between_installations() -> None:
     """How the controller is asked again and how a write is sent are the Sentio's, not the caller's."""
-    assert list(inspect.signature(create_client).parameters) == ["host", "port", "unit_id", "read_only", "clock"]
+    def keywords(create: Callable[..., Client]) -> list[str]:
+        parameters = inspect.signature(create).parameters.values()
+        return [p.name for p in parameters if p.kind is inspect.Parameter.KEYWORD_ONLY]
+
+    assert keywords(create_client) == ["host", "unit_id", "port", "read_only", "clock"]
     assert list(inspect.signature(create_client_on).parameters) == ["connection", "unit_id", "read_only", "clock"]
+    assert keywords(create_client_on) == ["unit_id", "read_only", "clock"]
+    assert inspect.signature(create_client).parameters["unit_id"].default is inspect.Parameter.empty
+
+
+def test_a_client_is_a_device_client_whichever_way_it_is_created() -> None:
+    created: DeviceClient = create_client(host="192.0.2.1", unit_id=1)
+    shared: DeviceClient = create_client_on(SimulatedModbusGateway({1: _installation()}), unit_id=1)
+    assert isinstance(created, DeviceClient) and isinstance(shared, DeviceClient)
+    asyncio.run(shared.connect())
+    assert isinstance(shared, DeviceClient)
+    assert (shared.model.name, shared.model.manufacturer) == ("Sentio", "Wavin")
 
 
 class _CountingGateway(SimulatedModbusGateway):
@@ -472,22 +494,23 @@ class _CountingGateway(SimulatedModbusGateway):
 
     asked = 0
 
-    async def request(self, request: Request) -> Response:
+    async def request(self, request: Request, *, timeout: float) -> Response:
         self.asked += 1
-        return await super().request(request)
+        return await super().request(request, timeout=timeout)
 
 
 def _on_its_own_connection(gateway: ModbusConnection, clock: FakeClock, monkeypatch: pytest.MonkeyPatch) -> Client:
     """`create_client`, with the connection it makes for itself replaced by `gateway`."""
-    def connection(host: str, port: int, *, clock: FakeClock) -> ModbusConnection:
-        assert (host, port) == ("192.0.2.1", 502)
+    def connection(host: str, port: int, *, connect_timeout: float, frame_gap: float,
+                   clock: FakeClock) -> ModbusConnection:
+        assert (host, port, connect_timeout, frame_gap) == ("192.0.2.1", 502, 3.0, 0.0)
         return gateway
     monkeypatch.setattr("wavin_sentio_connect._sentio.ModbusTcpConnection", connection)
-    return create_client("192.0.2.1", clock=clock)
+    return create_client(host="192.0.2.1", unit_id=1, clock=clock)
 
 
 def _on_a_shared_connection(gateway: ModbusConnection, clock: FakeClock, _: pytest.MonkeyPatch) -> Client:
-    return create_client_on(gateway, clock=clock)
+    return create_client_on(gateway, unit_id=1, clock=clock)
 
 
 @pytest.fixture(params=[_on_its_own_connection, _on_a_shared_connection])
@@ -560,6 +583,24 @@ def test_a_link_lost_for_less_than_half_a_minute_never_shows_the_controller_unav
     assert not polled.unavailable and polled.client.status(Status.CONNECTED).value
 
 
+def test_a_controller_silent_for_three_of_its_fastest_reads_shows_unavailable(
+        created: Callable[[ModbusConnection, FakeClock], Client]) -> None:
+    """Its fastest points are read every 10 s, so it shows unavailable 30 s into the silence."""
+    polled = _Polled(created)
+    polled.gateway.link_down = True
+    polled.run(29)
+    assert not polled.unavailable
+    polled.run(2)
+    assert polled.unavailable
+
+
+def test_a_request_waits_three_seconds_for_its_answer(
+        created: Callable[[ModbusConnection, FakeClock], Client]) -> None:
+    """Half a second the manual gives the controller, the rest the network's."""
+    polled = _Polled(created)
+    assert polled.gateway.timeouts and set(polled.gateway.timeouts) == {3.0}
+
+
 # ================================================================ when the installation changes
 
 class _PointsSeen:
@@ -572,6 +613,16 @@ class _PointsSeen:
         self.lost |= lost
 
 
+_SCAN_CHECK = PollRate.RARE
+"""The rate at which what the scans read is read again."""
+
+_REGISTER: dict[FunctionCode, Callable[[int], object]] = {
+    FunctionCode.READ_INPUT_REGISTERS: InputRegister,
+    FunctionCode.READ_HOLDING_REGISTERS: HoldingRegister,
+    FunctionCode.READ_DISCRETE_INPUTS: DiscreteInput,
+}
+
+
 def _changed(change: Callable[[SimulatedModbusDevice], None]) -> tuple[Client, SimulatedModbusGateway, _PointsSeen]:
     """Connect, make `change` to the controller, and check it for changes as polling does."""
     unit = _installation()
@@ -580,14 +631,42 @@ def _changed(change: Callable[[SimulatedModbusDevice], None]) -> tuple[Client, S
     client.subscribe_points(seen)
     change(unit)
     gateway.requests.clear()
-    asyncio.run(client.refresh(PollRate.SCAN))
+    asyncio.run(client.refresh(_SCAN_CHECK))
     return client, gateway, seen
 
 
 def test_an_unchanged_installation_is_checked_by_reading_input_registers_only() -> None:
+    """Beside the check, its rate's own points are read: those requests are left out."""
     _, gateway, seen = _changed(lambda unit: None)
-    assert {r.function for _, r in gateway.requests} == {FunctionCode.READ_INPUT_REGISTERS}
+    at_its_rate = {point.read for point in resolve(SENTIO, {}).points.values() if point.poll_rate is _SCAN_CHECK}
+    checking = [r for _, r in gateway.requests
+                if not all(_REGISTER[r.function](a) in at_its_rate for a in range(r.address, r.address + r.count))]
+    assert checking and {r.function for r in checking} == {FunctionCode.READ_INPUT_REGISTERS}
     assert (seen.gained, seen.lost) == (set(), set())
+
+
+def test_each_room_is_checked_for_changes_once_a_quarter_of_an_hour() -> None:
+    """As often as the points read at RARE are read; the rooms' checks are spread over it."""
+    unit = _installation()
+    clock = FakeClock()
+    client = create_client_on(SimulatedModbusGateway({1: unit}), unit_id=1, clock=clock)
+
+    async def after(seconds: int) -> tuple[int, ...]:
+        clock.advance(seconds)
+        await client.poll()
+        return client.instances("room")
+
+    async def check() -> list[tuple[int, ...]]:
+        await client.connect()
+        _set_up_room(unit, 2, "Office", air=2000, dummy=False)
+        waited = 0
+        while 2 not in client.instances("room") and waited < 900:
+            waited += 10
+            await after(10)
+        _remove(unit, room_base(2))
+        return [await after(899), await after(1)]
+
+    assert asyncio.run(check()) == [(1, 2, 3), (1, 3)]
 
 
 def test_a_room_set_up_later_is_found_while_polling() -> None:
@@ -640,7 +719,7 @@ def test_a_wireless_peripheral_replacing_a_wired_one_has_a_signal_strength() -> 
     assert not client.has(peripheral_key(2, PeripheralPointKey.SIGNAL_STRENGTH))
     replace(unit)
     gateway.requests.clear()
-    asyncio.run(client.refresh(PollRate.SCAN))
+    asyncio.run(client.refresh(_SCAN_CHECK))
     assert client.has(peripheral_key(2, PeripheralPointKey.SIGNAL_STRENGTH))
 
 
@@ -847,10 +926,8 @@ def test_a_read_answered_busy_is_asked_again() -> None:
 
 
 def test_a_write_answered_busy_is_sent_once() -> None:
-    unit = _installation()
-    client = create_client_on(SimulatedModbusGateway({1: unit}))
-    asyncio.run(client.connect())
-    unit.busy_for = 1
+    client, gateway = _connected()
+    gateway.units[1].busy_for = 1
     assert asyncio.run(client.write(room_key(1, RoomPointKey.TEMP_AIR_TARGET), 22.0)) is False
 
 
@@ -862,4 +939,4 @@ def test_a_read_only_client_never_writes() -> None:
 
 
 def test_a_request_asks_for_no_more_than_the_manual_allows() -> None:
-    assert (SENTIO_MODBUS.max_registers, SENTIO_MODBUS.max_bits) == (32, 256)
+    assert (SENTIO.max_registers, SENTIO.max_bits) == (32, 256)

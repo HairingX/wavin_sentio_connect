@@ -25,6 +25,7 @@ from modbus_event_connect.modbus import FunctionCode, ModbusTcpConnection, Reque
 
 from conftest import live_or_skip, live_setting
 from wavin_sentio_connect import (
+    SENTIO,
     LocationPointKey,
     RoomPointKey,
     create_client_on,
@@ -32,10 +33,12 @@ from wavin_sentio_connect import (
     room_key,
     rooms,
 )
+from wavin_sentio_connect._sentio import _CONNECT_TIMEOUT, _FRAME_GAP, _TIMEOUT_MARGIN
 
 HOST = live_setting("SENTIO_HOST")
 PORT = int(live_setting("SENTIO_PORT") or "502")
 UNIT_ID = int(live_setting("SENTIO_UNIT_ID") or "1")
+TIMEOUT = SENTIO.answers_within + _TIMEOUT_MARGIN
 
 pytestmark = [
     pytest.mark.asyncio(loop_scope="module"),
@@ -52,7 +55,7 @@ class Live:
 @pytest_asyncio.fixture(scope="module", loop_scope="module")  # pyright: ignore[reportUntypedFunctionDecorator, reportUnknownMemberType]
 async def live() -> AsyncGenerator[Live, None]:
     assert HOST is not None   # guarded by the skip above
-    connection = ModbusTcpConnection(HOST, PORT)
+    connection = ModbusTcpConnection(HOST, PORT, connect_timeout=_CONNECT_TIMEOUT, frame_gap=_FRAME_GAP)
     client = create_client_on(connection, unit_id=UNIT_ID, read_only=True)
     try:
         await client.connect()
@@ -177,7 +180,7 @@ async def test_the_real_request_limit(live: Live) -> None:
     largest = 0
     for count in (1, 8, 16, 32, 33, 35):
         response = await live.connection.request(
-            Request(UNIT_ID, FunctionCode.READ_HOLDING_REGISTERS, 101, count=count))
+            Request(UNIT_ID, FunctionCode.READ_HOLDING_REGISTERS, 101, count=count), timeout=TIMEOUT)
         verdict = "ok" if response.ok else f"refused, exception {response.exception_code}"
         print(f"  {count:>3} registers -> {verdict}")
         if response.ok:
@@ -189,6 +192,6 @@ async def test_the_real_request_limit(live: Live) -> None:
 async def test_the_alarm_inputs_answer(live: Live) -> None:
     """Alarms are discrete inputs (0x02). Not in the model yet; this confirms they are readable."""
     response = await live.connection.request(
-        Request(UNIT_ID, FunctionCode.READ_DISCRETE_INPUTS, 1, count=2))
+        Request(UNIT_ID, FunctionCode.READ_DISCRETE_INPUTS, 1, count=2), timeout=TIMEOUT)
     print(f"\n  location aggregated warning/error (DI 00001-00002): {response}")
     assert response.ok or response.exception_code in (0x02, 0x03)

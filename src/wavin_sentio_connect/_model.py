@@ -1,4 +1,5 @@
-"""The Wavin Sentio CCU-208 register map, as a modbus_event_connect model, and its Modbus profile."""
+"""The Wavin Sentio CCU-208 as a modbus_event_connect model: its register map, how often each
+point is read, and how it is talked to over Modbus."""
 from __future__ import annotations
 
 import logging
@@ -9,6 +10,7 @@ from typing import Any
 from types import MappingProxyType
 
 from modbus_event_connect import (
+    NO_RETRY,
     Attempts,
     DataType,
     Exponential,
@@ -16,7 +18,6 @@ from modbus_event_connect import (
     Key,
     Labels,
     Limits,
-    Model,
     Point,
     PollRate,
     Quality,
@@ -25,16 +26,14 @@ from modbus_event_connect import (
     Retry,
     Scan,
     Section,
-    Timing,
     Unit,
     WriteKind,
 )
 from modbus_event_connect.modbus import (
-    BitWrite,
     DiscreteInput,
     HoldingRegister,
     InputRegister,
-    ModbusProfile,
+    ModbusModel,
     SingleWrite,
     plain,
 )
@@ -1009,7 +1008,7 @@ def rereads(group: str, **where: int) -> Refresh:
 # its "invalid value", which is no reading; a register may give fewer values than its type.
 
 def _u8[T](key: Key[T], read: InputRegister | HoldingRegister, *, write: HoldingRegister | None = None,
-           maximum: int = 254, poll_rate: PollRate = PollRate.SLOW, unit: Unit | None = None,
+           poll_rate: PollRate, maximum: int = 254, unit: Unit | None = None,
            on_write: Refresh | None = None, labels: Mapping[str, str] | None = None) -> Point[T]:
     """val_u1: 0 to `maximum`; anything above - its invalid 0xFF in particular - is no value."""
     return Point(key, read=read, write=write, data_type=DataType.UINT16, valid_raw=range(0, maximum + 1),
@@ -1018,20 +1017,22 @@ def _u8[T](key: Key[T], read: InputRegister | HoldingRegister, *, write: Holding
                  labels=labels or {})
 
 
-def _flag(key: Key[bool], register: HoldingRegister, *, on_write: Refresh | None = None) -> Point[bool]:
+def _flag(key: Key[bool], register: HoldingRegister, *, poll_rate: PollRate,
+          on_write: Refresh | None = None) -> Point[bool]:
     """val_u1 given as "0 OFF, 1 ON"; anything else - its invalid 0xFF in particular - is no value."""
     return Point(key, read=register, write=register, data_type=DataType.BOOL, valid_raw=range(0, 2),
-                 poll_rate=PollRate.SLOW, on_write=on_write)
+                 poll_rate=poll_rate, on_write=on_write)
 
 
-def _choice[T](key: Key[T], register: HoldingRegister, *, on_write: Refresh | None = None) -> Point[T]:
+def _choice[T](key: Key[T], register: HoldingRegister, *, poll_rate: PollRate,
+               on_write: Refresh | None = None) -> Point[T]:
     """val_u1 naming a state, written as one of them; its invalid 0xFF is no value."""
     return Point(key, read=register, write=register, data_type=DataType.UINT16, valid_raw=range(0, 0xFF),
-                 poll_rate=PollRate.SLOW, on_write=on_write)
+                 poll_rate=poll_rate, on_write=on_write)
 
 
 def _u16[T](key: Key[T], read: InputRegister | HoldingRegister, *, write: HoldingRegister | None = None,
-            poll_rate: PollRate = PollRate.SLOW, write_kind: WriteKind = WriteKind.STATE,
+            poll_rate: PollRate, write_kind: WriteKind = WriteKind.STATE,
             unit: Unit | None = None) -> Point[T]:
     """val_u2: 0 to 0xFFFE; its invalid 0xFFFF is no value."""
     return Point(key, read=read, write=write, data_type=DataType.UINT16, poll_rate=poll_rate, write_kind=write_kind,
@@ -1039,28 +1040,29 @@ def _u16[T](key: Key[T], read: InputRegister | HoldingRegister, *, write: Holdin
 
 
 def _u32(key: Key[int], read: InputRegister | HoldingRegister, *, write: HoldingRegister | None = None,
-         poll_rate: PollRate = PollRate.SLOW, unit: Unit | None = None) -> Point[int]:
+         poll_rate: PollRate, unit: Unit | None = None) -> Point[int]:
     """val_u4: 0 to 0xFFFFFFFE; its invalid 0xFFFFFFFF is no value."""
     return Point(key, read=read, write=write, data_type=DataType.UINT32, valid_raw=range(0, 0xFFFFFFFF),
                  poll_rate=poll_rate, unit=unit)
 
 
 def _fp100(key: Key[float], read: InputRegister | HoldingRegister, *, write: HoldingRegister | None = None,
-           poll_rate: PollRate = PollRate.SLOW, unit: Unit | None = Unit.CELSIUS, on_write: Refresh | None = None,
+           poll_rate: PollRate, unit: Unit | None = Unit.CELSIUS, on_write: Refresh | None = None,
            labels: Mapping[str, str] | None = None) -> Point[float]:
     """val_d2_fp100: signed hundredths, -327.68 to 327.66; its invalid 0x7FFF is no reading."""
     return Point(key, read=read, write=write, data_type=DataType.INT16, scale=0.01, valid_raw=range(-0x8000, 0x7FFF),
                  poll_rate=poll_rate, unit=unit, on_write=on_write, labels=labels or {})
 
 
-def _fp10(key: Key[float], read: HoldingRegister, *, write: HoldingRegister | None = None) -> Point[float]:
+def _fp10(key: Key[float], read: HoldingRegister, *, write: HoldingRegister | None = None,
+          poll_rate: PollRate) -> Point[float]:
     """val_d2_fp10: signed tenths; 0x7FFF is taken as no reading, as for val_d2_fp100.
 
     The manual's type table does not give this type. Its name gives tenths, and a CCU-208's heat
     curve slope and gain, both read as 10, are 1.0 that way.
     """
     return Point(key, read=read, write=write, data_type=DataType.INT16, scale=0.1, valid_raw=range(-0x8000, 0x7FFF),
-                 poll_rate=PollRate.SLOW)
+                 poll_rate=poll_rate)
 
 
 def _labelled(points: list[Point[Any]], **labels: str) -> list[Point[Any]]:
@@ -1083,9 +1085,10 @@ def _summary(key: Key[bool], read: DiscreteInput) -> Point[bool]:
                  on_change=Refresh(ALARM))
 
 
-def _text(key: Key[str], read: InputRegister | HoldingRegister, *, write: HoldingRegister | None = None) -> Point[str]:
+def _text(key: Key[str], read: InputRegister | HoldingRegister, *, write: HoldingRegister | None = None,
+          poll_rate: PollRate) -> Point[str]:
     """val_utf8: 32 bytes over 16 registers, NUL terminated, no length prefix."""
-    return Point(key, read=read, write=write, data_type=DataType.string(16), poll_rate=PollRate.STATIC)
+    return Point(key, read=read, write=write, data_type=DataType.string(16), poll_rate=poll_rate)
 
 
 # ================================================================================== points
@@ -1099,26 +1102,27 @@ LOCATION = [
     _u8(LocationPointKey.SOFTWARE_MINOR, InputRegister(13), poll_rate=PollRate.STATIC),
     _u16(LocationPointKey.SERIAL_NUMBER_PREFIX, InputRegister(14), poll_rate=PollRate.STATIC),
     _u32(LocationPointKey.SERIAL_NUMBER, InputRegister(15), poll_rate=PollRate.STATIC),
-    _u8(LocationPointKey.HEATING_COOLING_MODE, InputRegister(20)),
+    _u8(LocationPointKey.HEATING_COOLING_MODE, InputRegister(20), poll_rate=PollRate.SLOW),
 
     _u8(LocationPointKey.SETPOINT_MAJOR, HoldingRegister(1), poll_rate=PollRate.STATIC),
     _u8(LocationPointKey.SETPOINT_MINOR, HoldingRegister(2), poll_rate=PollRate.STATIC),
     # Whether the controller will accept writes at all, so it is always kept current.
     Point(LocationPointKey.MODBUS_MODE, read=HoldingRegister(5), data_type=DataType.UINT16, valid_raw=range(0, 0xFF),
-          poll_always=True),
+          poll_rate=PollRate.MEDIUM, poll_always=True),
     # Write-only per the manual: it can never be read back. The manual: "range for password is 1 - 65534".
     Point(LocationPointKey.MODBUS_PASSWORD, write=HoldingRegister(6), data_type=DataType.UINT16,
           write_kind=WriteKind.COMMAND, valid_raw=range(1, 0xFFFF)),
-    _text(LocationPointKey.LOCATION_NAME, HoldingRegister(10), write=HoldingRegister(10)),
-    _flag(LocationPointKey.STANDBY_ENABLE, HoldingRegister(26), on_write=rereads(ROOM_TARGET)),
-    _flag(LocationPointKey.VACATION_ENABLE, HoldingRegister(27), on_write=rereads(ROOM_TARGET)),
-    _u32(LocationPointKey.DATETIME_UNIX, HoldingRegister(28), write=HoldingRegister(28), unit=Unit.SECONDS),
-    _flag(LocationPointKey.DAYLIGHT_SAVING_ENABLE, HoldingRegister(30)),
-    _fp100(LocationPointKey.TEMP_OUTDOOR_COOLING_MIN, HoldingRegister(31), write=HoldingRegister(31)),
-    _fp100(LocationPointKey.TEMP_OUTDOOR_HEATING_MAX, HoldingRegister(32), write=HoldingRegister(32)),
-    _choice(LocationPointKey.UPDATE_MODE, HoldingRegister(33)),
-    _choice(LocationPointKey.HEATING_COOLING_MODE_BMS_OVERRIDE, HoldingRegister(34)),
-    _u16(LocationPointKey.TIMEZONE, HoldingRegister(35), write=HoldingRegister(35)),
+    _text(LocationPointKey.LOCATION_NAME, HoldingRegister(10), write=HoldingRegister(10), poll_rate=PollRate.STATIC),
+    _flag(LocationPointKey.STANDBY_ENABLE, HoldingRegister(26), on_write=rereads(ROOM_TARGET), poll_rate=PollRate.SLOW),
+    _flag(LocationPointKey.VACATION_ENABLE, HoldingRegister(27), on_write=rereads(ROOM_TARGET), poll_rate=PollRate.SLOW),
+    _u32(LocationPointKey.DATETIME_UNIX, HoldingRegister(28), write=HoldingRegister(28), unit=Unit.SECONDS,
+         poll_rate=PollRate.SLOW),
+    _flag(LocationPointKey.DAYLIGHT_SAVING_ENABLE, HoldingRegister(30), poll_rate=PollRate.SLOW),
+    _fp100(LocationPointKey.TEMP_OUTDOOR_COOLING_MIN, HoldingRegister(31), write=HoldingRegister(31), poll_rate=PollRate.SLOW),
+    _fp100(LocationPointKey.TEMP_OUTDOOR_HEATING_MAX, HoldingRegister(32), write=HoldingRegister(32), poll_rate=PollRate.SLOW),
+    _choice(LocationPointKey.UPDATE_MODE, HoldingRegister(33), poll_rate=PollRate.SLOW),
+    _choice(LocationPointKey.HEATING_COOLING_MODE_BMS_OVERRIDE, HoldingRegister(34), poll_rate=PollRate.SLOW),
+    _u16(LocationPointKey.TIMEZONE, HoldingRegister(35), write=HoldingRegister(35), poll_rate=PollRate.SLOW),
 
     # The manual: "A problem is pending in whole system" / "A critical problem is pending".
     _summary(LocationPointKey.SYSTEM_WARNING, DiscreteInput(1)),
@@ -1130,10 +1134,11 @@ OUTDOOR_ZONE = _labelled([
     _fp100(OutdoorPointKey.AIR_TEMP, InputRegister(3301), poll_rate=PollRate.MEDIUM),
     _fp100(OutdoorPointKey.AIR_TEMP_FILTERED, InputRegister(3302), poll_rate=PollRate.MEDIUM),
     _fp100(OutdoorPointKey.AIR_TEMP_GEOMETRICAL, InputRegister(3303), poll_rate=PollRate.MEDIUM),
-    _text(OutdoorPointKey.NAME, HoldingRegister(3301)),
+    _text(OutdoorPointKey.NAME, HoldingRegister(3301), poll_rate=PollRate.STATIC),
     # The manual: 327.67, the invalid value, "means override is disabled"; so writing a number
     # sets an override, and no value can be written to clear it.
-    _fp100(OutdoorPointKey.AIR_TEMP_BMS_OVERRIDE, HoldingRegister(3317), write=HoldingRegister(3317)),
+    _fp100(OutdoorPointKey.AIR_TEMP_BMS_OVERRIDE, HoldingRegister(3317), write=HoldingRegister(3317),
+           poll_rate=PollRate.SLOW),
     _alarm(OutdoorPointKey.WARNING, DiscreteInput(3301)),
     _alarm(OutdoorPointKey.ERROR, DiscreteInput(3302)),
     _alarm(OutdoorPointKey.LOW_BATTERY, DiscreteInput(3303)),
@@ -1152,14 +1157,15 @@ BOILER_HEAT_PUMP_POINTS = _labelled([
     _u8(BoilerHeatPumpPointKey.BLOCKING_SOURCE, InputRegister(8202), poll_rate=PollRate.FAST),
     _fp100(BoilerHeatPumpPointKey.TEMP_INLET_CURRENT, InputRegister(8203), poll_rate=PollRate.MEDIUM),
     _fp100(BoilerHeatPumpPointKey.TEMP_REQUESTED, InputRegister(8204), poll_rate=PollRate.MEDIUM),
-    _text(BoilerHeatPumpPointKey.NAME, HoldingRegister(8201), write=HoldingRegister(8201)),
-    _u16(BoilerHeatPumpPointKey.MIN_RUNTIME, HoldingRegister(8217), write=HoldingRegister(8217), unit=Unit.MINUTES),
+    _text(BoilerHeatPumpPointKey.NAME, HoldingRegister(8201), write=HoldingRegister(8201), poll_rate=PollRate.STATIC),
+    _u16(BoilerHeatPumpPointKey.MIN_RUNTIME, HoldingRegister(8217), write=HoldingRegister(8217), unit=Unit.MINUTES,
+         poll_rate=PollRate.SLOW),
     _u16(BoilerHeatPumpPointKey.MIN_CYCLE_DELAY, HoldingRegister(8218), write=HoldingRegister(8218),
-         unit=Unit.MINUTES),
+         unit=Unit.MINUTES, poll_rate=PollRate.SLOW),
     _u16(BoilerHeatPumpPointKey.DEMAND_START_DELAY, HoldingRegister(8219), write=HoldingRegister(8219),
-         unit=Unit.MINUTES),
+         unit=Unit.MINUTES, poll_rate=PollRate.SLOW),
     _u16(BoilerHeatPumpPointKey.DEMAND_STOP_DELAY, HoldingRegister(8220), write=HoldingRegister(8220),
-         unit=Unit.MINUTES),
+         unit=Unit.MINUTES, poll_rate=PollRate.SLOW),
     _alarm(BoilerHeatPumpPointKey.WARNING, DiscreteInput(8201)),
     _alarm(BoilerHeatPumpPointKey.ERROR, DiscreteInput(8202)),
     _alarm(BoilerHeatPumpPointKey.INLET_SENSOR_FAILURE, DiscreteInput(8203)),
@@ -1177,7 +1183,8 @@ def hcc(n: int) -> list[Point[Any]]:
     base = hcc_base(n)
 
     def setting(point: PointKey[float], offset: int) -> Point[float]:
-        return _fp100(hcc_key(n, point), HoldingRegister(base + offset), write=HoldingRegister(base + offset))
+        return _fp100(hcc_key(n, point), HoldingRegister(base + offset), write=HoldingRegister(base + offset),
+                      poll_rate=PollRate.SLOW)
 
     return [
         _u8(hcc_key(n, HccPointKey.STATE), InputRegister(base + 1), poll_rate=PollRate.FAST),
@@ -1187,14 +1194,17 @@ def hcc(n: int) -> list[Point[Any]]:
         _fp100(hcc_key(n, HccPointKey.TEMP_INLET_CURRENT), InputRegister(base + 5), poll_rate=PollRate.MEDIUM),
         _fp100(hcc_key(n, HccPointKey.TEMP_INLET_TARGET), InputRegister(base + 6), poll_rate=PollRate.MEDIUM),
         _fp100(hcc_key(n, HccPointKey.TEMP_ROOM_TARGET), InputRegister(base + 8), poll_rate=PollRate.MEDIUM),
-        _text(hcc_key(n, HccPointKey.NAME), HoldingRegister(base + 1), write=HoldingRegister(base + 1)),
-        _choice(hcc_key(n, HccPointKey.HEAT_CURVE_TYPE), HoldingRegister(base + 17)),
-        _fp10(hcc_key(n, HccPointKey.HEAT_CURVE_SLOPE), HoldingRegister(base + 18), write=HoldingRegister(base + 18)),
+        _text(hcc_key(n, HccPointKey.NAME), HoldingRegister(base + 1), write=HoldingRegister(base + 1),
+              poll_rate=PollRate.STATIC),
+        _choice(hcc_key(n, HccPointKey.HEAT_CURVE_TYPE), HoldingRegister(base + 17), poll_rate=PollRate.SLOW),
+        _fp10(hcc_key(n, HccPointKey.HEAT_CURVE_SLOPE), HoldingRegister(base + 18), write=HoldingRegister(base + 18),
+              poll_rate=PollRate.SLOW),
         setting(HccPointKey.HEAT_CURVE_SHIFT, 19),
         setting(HccPointKey.HEAT_CURVE_INLET_MIN, 20),
         setting(HccPointKey.HEAT_CURVE_INLET_MAX, 21),
-        _fp10(hcc_key(n, HccPointKey.HEAT_CURVE_GAIN), HoldingRegister(base + 22), write=HoldingRegister(base + 22)),
-        _flag(hcc_key(n, HccPointKey.HIGH_TEMP_CUTOFF_ENABLE), HoldingRegister(base + 23)),
+        _fp10(hcc_key(n, HccPointKey.HEAT_CURVE_GAIN), HoldingRegister(base + 22), write=HoldingRegister(base + 22),
+              poll_rate=PollRate.SLOW),
+        _flag(hcc_key(n, HccPointKey.HIGH_TEMP_CUTOFF_ENABLE), HoldingRegister(base + 23), poll_rate=PollRate.SLOW),
         setting(HccPointKey.HIGH_TEMP_CUTOFF_TEMP, 24),
         _alarm(hcc_key(n, HccPointKey.WARNING), DiscreteInput(base + 1)),
         _alarm(hcc_key(n, HccPointKey.ERROR), DiscreteInput(base + 2)),
@@ -1204,13 +1214,14 @@ def hcc(n: int) -> list[Point[Any]]:
 
 
 def _setting(key: Key[float], register: int, *, unit: Unit | None = Unit.CELSIUS) -> Point[float]:
-    """A val_d2_fp100 setting the manual gives as R/W."""
-    return _fp100(key, HoldingRegister(register), write=HoldingRegister(register), unit=unit)
+    """A val_d2_fp100 setting the manual gives as R/W, read at SLOW."""
+    return _fp100(key, HoldingRegister(register), write=HoldingRegister(register), unit=unit, poll_rate=PollRate.SLOW)
 
 
 def _number[T](key: Key[T], register: int, *, maximum: int = 254, unit: Unit | None = None) -> Point[T]:
-    """A val_u1 setting the manual gives as R/W, a number."""
-    return _u8(key, HoldingRegister(register), write=HoldingRegister(register), maximum=maximum, unit=unit)
+    """A val_u1 setting the manual gives as R/W, a number, read at SLOW."""
+    return _u8(key, HoldingRegister(register), write=HoldingRegister(register), maximum=maximum, unit=unit,
+               poll_rate=PollRate.SLOW)
 
 
 DHW_TANK_POINTS = _labelled([
@@ -1222,9 +1233,10 @@ DHW_TANK_POINTS = _labelled([
     _fp100(DhwTankPointKey.TEMP_CIRCULATION_RETURN, InputRegister(6606), poll_rate=PollRate.MEDIUM),
     _fp100(DhwTankPointKey.TEMP_SOURCE_INLET, InputRegister(6607), poll_rate=PollRate.MEDIUM),
     _fp100(DhwTankPointKey.TEMP_SOURCE_RETURN, InputRegister(6608), poll_rate=PollRate.MEDIUM),
-    _text(DhwTankPointKey.NAME, HoldingRegister(6601), write=HoldingRegister(6601)),
-    _choice(DhwTankPointKey.MODE, HoldingRegister(6617)),
-    _u16(DhwTankPointKey.CIRCULATION_COOLDOWN, HoldingRegister(6618), write=HoldingRegister(6618)),
+    _text(DhwTankPointKey.NAME, HoldingRegister(6601), write=HoldingRegister(6601), poll_rate=PollRate.STATIC),
+    _choice(DhwTankPointKey.MODE, HoldingRegister(6617), poll_rate=PollRate.SLOW),
+    _u16(DhwTankPointKey.CIRCULATION_COOLDOWN, HoldingRegister(6618), write=HoldingRegister(6618),
+         poll_rate=PollRate.SLOW),
     _setting(DhwTankPointKey.CIRCULATION_STOP_DIFFERENCE, 6619),
     _setting(DhwTankPointKey.SOURCE_RETURN_TEMP_LIMIT, 6620),
     _setting(DhwTankPointKey.TEMP_SET, 6621),
@@ -1247,13 +1259,13 @@ BUFFER_TANK_POINTS = _labelled([
     _fp100(BufferTankPointKey.TEMP_SOURCE_INLET, InputRegister(8303), poll_rate=PollRate.MEDIUM),
     _fp100(BufferTankPointKey.TEMP_UPPER, InputRegister(8304), poll_rate=PollRate.MEDIUM),
     _fp100(BufferTankPointKey.TEMP_LOWER, InputRegister(8305), poll_rate=PollRate.MEDIUM),
-    _text(BufferTankPointKey.NAME, HoldingRegister(8301), write=HoldingRegister(8301)),
+    _text(BufferTankPointKey.NAME, HoldingRegister(8301), write=HoldingRegister(8301), poll_rate=PollRate.STATIC),
     # The manual gives both differences in kelvins.
     _setting(BufferTankPointKey.START_DIFFERENCE, 8317, unit=Unit.KELVIN),
     _setting(BufferTankPointKey.STOP_DIFFERENCE, 8318, unit=Unit.KELVIN),
-    _choice(BufferTankPointKey.SENSOR_PRIORITY, HoldingRegister(8319)),
-    _flag(BufferTankPointKey.FLOW_BALANCING_ENABLE, HoldingRegister(8320)),
-    _choice(BufferTankPointKey.CHARGE_MODE, HoldingRegister(8321)),
+    _choice(BufferTankPointKey.SENSOR_PRIORITY, HoldingRegister(8319), poll_rate=PollRate.SLOW),
+    _flag(BufferTankPointKey.FLOW_BALANCING_ENABLE, HoldingRegister(8320), poll_rate=PollRate.SLOW),
+    _choice(BufferTankPointKey.CHARGE_MODE, HoldingRegister(8321), poll_rate=PollRate.SLOW),
     _number(BufferTankPointKey.CHARGE_EVALUATION_DELAY, 8322, unit=Unit.MINUTES),
     *(_alarm(key, DiscreteInput(8300 + bit)) for bit, key in enumerate((
         BufferTankPointKey.WARNING, BufferTankPointKey.ERROR, BufferTankPointKey.INLET_SENSOR_FAILURE,
@@ -1282,32 +1294,41 @@ def itc(n: int) -> list[Point[Any]]:
         _fp100(key(ItcPointKey.SERVO_POSITION_REQUEST), InputRegister(base + 9), poll_rate=PollRate.MEDIUM,
                unit=Unit.PERCENT),
         _fp100(key(ItcPointKey.TEMP_ROOM_TARGET), InputRegister(base + 10), poll_rate=PollRate.MEDIUM),
-        _text(key(ItcPointKey.NAME), HoldingRegister(base + 1), write=HoldingRegister(base + 1)),
-        _fp10(key(ItcPointKey.REGULATOR_P), HoldingRegister(base + 17), write=HoldingRegister(base + 17)),
-        _u16(key(ItcPointKey.REGULATOR_I), HoldingRegister(base + 18), write=HoldingRegister(base + 18)),
+        _text(key(ItcPointKey.NAME), HoldingRegister(base + 1), write=HoldingRegister(base + 1),
+              poll_rate=PollRate.STATIC),
+        _fp10(key(ItcPointKey.REGULATOR_P), HoldingRegister(base + 17), write=HoldingRegister(base + 17),
+              poll_rate=PollRate.SLOW),
+        _u16(key(ItcPointKey.REGULATOR_I), HoldingRegister(base + 18), write=HoldingRegister(base + 18),
+             poll_rate=PollRate.SLOW),
         _setting(key(ItcPointKey.REGULATOR_HYSTERESIS), base + 19),
-        _choice(key(ItcPointKey.HEAT_CURVE_TYPE), HoldingRegister(base + 20)),
-        _fp10(key(ItcPointKey.HEAT_CURVE_SLOPE), HoldingRegister(base + 21), write=HoldingRegister(base + 21)),
+        _choice(key(ItcPointKey.HEAT_CURVE_TYPE), HoldingRegister(base + 20), poll_rate=PollRate.SLOW),
+        _fp10(key(ItcPointKey.HEAT_CURVE_SLOPE), HoldingRegister(base + 21), write=HoldingRegister(base + 21),
+              poll_rate=PollRate.SLOW),
         _setting(key(ItcPointKey.HEAT_CURVE_SHIFT), base + 22),
         _setting(key(ItcPointKey.HEAT_CURVE_INLET_MIN), base + 23),
         _setting(key(ItcPointKey.HEAT_CURVE_INLET_MAX), base + 24),
-        _fp10(key(ItcPointKey.HEAT_CURVE_GAIN), HoldingRegister(base + 25), write=HoldingRegister(base + 25)),
-        _choice(key(ItcPointKey.RETURN_LIMITER_FUNCTION), HoldingRegister(base + 26)),
+        _fp10(key(ItcPointKey.HEAT_CURVE_GAIN), HoldingRegister(base + 25), write=HoldingRegister(base + 25),
+              poll_rate=PollRate.SLOW),
+        _choice(key(ItcPointKey.RETURN_LIMITER_FUNCTION), HoldingRegister(base + 26), poll_rate=PollRate.SLOW),
         _setting(key(ItcPointKey.RETURN_MAX_LIMIT), base + 27),
-        _fp10(key(ItcPointKey.RETURN_MAX_GAIN), HoldingRegister(base + 28), write=HoldingRegister(base + 28)),
-        _flag(key(ItcPointKey.RETURN_MAX_PRIORITY), HoldingRegister(base + 29)),
+        _fp10(key(ItcPointKey.RETURN_MAX_GAIN), HoldingRegister(base + 28), write=HoldingRegister(base + 28),
+              poll_rate=PollRate.SLOW),
+        _flag(key(ItcPointKey.RETURN_MAX_PRIORITY), HoldingRegister(base + 29), poll_rate=PollRate.SLOW),
         _setting(key(ItcPointKey.RETURN_MIN_LIMIT), base + 30),
-        _fp10(key(ItcPointKey.RETURN_MIN_GAIN), HoldingRegister(base + 31), write=HoldingRegister(base + 31)),
-        _flag(key(ItcPointKey.BOOST_ENABLE), HoldingRegister(base + 32)),
+        _fp10(key(ItcPointKey.RETURN_MIN_GAIN), HoldingRegister(base + 31), write=HoldingRegister(base + 31),
+              poll_rate=PollRate.SLOW),
+        _flag(key(ItcPointKey.BOOST_ENABLE), HoldingRegister(base + 32), poll_rate=PollRate.SLOW),
         _number(key(ItcPointKey.BOOST_FLOW), base + 33),
-        _flag(key(ItcPointKey.RAMPING_ENABLE), HoldingRegister(base + 34)),
+        _flag(key(ItcPointKey.RAMPING_ENABLE), HoldingRegister(base + 34), poll_rate=PollRate.SLOW),
         _number(key(ItcPointKey.RAMPING_TIME), base + 35),
         _number(key(ItcPointKey.FROST_PROTECTION_MODE), base + 36),
         _setting(key(ItcPointKey.FROST_PROTECTION_TEMP), base + 37),
-        _flag(key(ItcPointKey.HIGH_TEMP_CUTOFF_ENABLE), HoldingRegister(base + 38)),
+        _flag(key(ItcPointKey.HIGH_TEMP_CUTOFF_ENABLE), HoldingRegister(base + 38), poll_rate=PollRate.SLOW),
         _setting(key(ItcPointKey.HIGH_TEMP_CUTOFF_TEMP), base + 39),
-        _fp10(key(ItcPointKey.COOLING_REGULATOR_P), HoldingRegister(base + 40), write=HoldingRegister(base + 40)),
-        _u16(key(ItcPointKey.COOLING_REGULATOR_I), HoldingRegister(base + 41), write=HoldingRegister(base + 41)),
+        _fp10(key(ItcPointKey.COOLING_REGULATOR_P), HoldingRegister(base + 40), write=HoldingRegister(base + 40),
+              poll_rate=PollRate.SLOW),
+        _u16(key(ItcPointKey.COOLING_REGULATOR_I), HoldingRegister(base + 41), write=HoldingRegister(base + 41),
+             poll_rate=PollRate.SLOW),
         _setting(key(ItcPointKey.COOLING_REGULATOR_HYSTERESIS), base + 42),
         _setting(key(ItcPointKey.COOLING_INLET_MIN), base + 43),
         _setting(key(ItcPointKey.COOLING_INLET_MAX), base + 44),
@@ -1331,10 +1352,10 @@ def ventilation(n: int) -> list[Point[Any]]:
 
     def flow(point: PointKey[int], offset: int) -> Point[int]:
         return _u16(key(point), HoldingRegister(base + offset), write=HoldingRegister(base + offset),
-                    unit=Unit.CUBIC_METERS_PER_HOUR)
+                    unit=Unit.CUBIC_METERS_PER_HOUR, poll_rate=PollRate.SLOW)
 
     return [
-        _text(key(VentilationPointKey.DEVICE_MODEL), InputRegister(base + 1)),
+        _text(key(VentilationPointKey.DEVICE_MODEL), InputRegister(base + 1), poll_rate=PollRate.STATIC),
         _u32(key(VentilationPointKey.WARNING_CODE), InputRegister(base + 17), poll_rate=PollRate.MEDIUM),
         _u32(key(VentilationPointKey.ERROR_CODE), InputRegister(base + 19), poll_rate=PollRate.MEDIUM),
         _u32(key(VentilationPointKey.FEATURES), InputRegister(base + 21), poll_rate=PollRate.STATIC),
@@ -1359,12 +1380,14 @@ def ventilation(n: int) -> list[Point[Any]]:
         _fp100(key(VentilationPointKey.BYPASS_DAMPER_POSITION), InputRegister(base + 35), poll_rate=PollRate.MEDIUM,
                unit=Unit.PERCENT),
         _u8(key(VentilationPointKey.FREE_COOLING), InputRegister(base + 36), poll_rate=PollRate.MEDIUM),
-        _u32(key(VentilationPointKey.AIR_FILTER_LAST_CHANGE), InputRegister(base + 37), unit=Unit.SECONDS),
-        _text(key(VentilationPointKey.NAME), HoldingRegister(base + 1), write=HoldingRegister(base + 1)),
+        _u32(key(VentilationPointKey.AIR_FILTER_LAST_CHANGE), InputRegister(base + 37), unit=Unit.SECONDS,
+             poll_rate=PollRate.SLOW),
+        _text(key(VentilationPointKey.NAME), HoldingRegister(base + 1), write=HoldingRegister(base + 1),
+              poll_rate=PollRate.STATIC),
         _u32(key(VentilationPointKey.AIR_FILTER_LIFETIME), HoldingRegister(base + 17),
-             write=HoldingRegister(base + 17), unit=Unit.MINUTES),
+             write=HoldingRegister(base + 17), unit=Unit.MINUTES, poll_rate=PollRate.SLOW),
         _u32(key(VentilationPointKey.AIR_FILTER_LIFETIME_USED), HoldingRegister(base + 19),
-             write=HoldingRegister(base + 19)),
+             write=HoldingRegister(base + 19), poll_rate=PollRate.SLOW),
         level(VentilationPointKey.EXHAUST_LEVEL_UNOCCUPIED, 21),
         level(VentilationPointKey.EXHAUST_LEVEL_ECO, 22),
         level(VentilationPointKey.EXHAUST_LEVEL_COMFORT, 23),
@@ -1381,11 +1404,11 @@ def ventilation(n: int) -> list[Point[Any]]:
         flow(VentilationPointKey.SUPPLY_FLOW_ECO, 34),
         flow(VentilationPointKey.SUPPLY_FLOW_COMFORT, 35),
         flow(VentilationPointKey.SUPPLY_FLOW_BOOST, 36),
-        _flag(key(VentilationPointKey.ALLOW_STOPPED), HoldingRegister(base + 37)),
-        _flag(key(VentilationPointKey.ALLOW_UNOCCUPIED), HoldingRegister(base + 38)),
-        _choice(key(VentilationPointKey.STANDBY_LEVEL), HoldingRegister(base + 39)),
-        _choice(key(VentilationPointKey.VACATION_LEVEL), HoldingRegister(base + 40)),
-        _choice(key(VentilationPointKey.HEAT_EXCHANGE_MODE), HoldingRegister(base + 41)),
+        _flag(key(VentilationPointKey.ALLOW_STOPPED), HoldingRegister(base + 37), poll_rate=PollRate.SLOW),
+        _flag(key(VentilationPointKey.ALLOW_UNOCCUPIED), HoldingRegister(base + 38), poll_rate=PollRate.SLOW),
+        _choice(key(VentilationPointKey.STANDBY_LEVEL), HoldingRegister(base + 39), poll_rate=PollRate.SLOW),
+        _choice(key(VentilationPointKey.VACATION_LEVEL), HoldingRegister(base + 40), poll_rate=PollRate.SLOW),
+        _choice(key(VentilationPointKey.HEAT_EXCHANGE_MODE), HoldingRegister(base + 41), poll_rate=PollRate.SLOW),
         *(_alarm(key(point), DiscreteInput(base + bit)) for bit, point in enumerate((
             VentilationPointKey.WARNING, VentilationPointKey.ERROR, VentilationPointKey.AIR_FILTER_EXPIRED,
             VentilationPointKey.AIR_FILTER_YEAR_PASSED, VentilationPointKey.DEVICE_WARNING,
@@ -1409,17 +1432,21 @@ def dehumidifier(n: int) -> list[Point[Any]]:
         _u8(key(DehumidifierPointKey.THERMAL_INTEGRATION_STATE), InputRegister(base + 5), poll_rate=PollRate.FAST),
         _u8(key(DehumidifierPointKey.THERMAL_INTEGRATION_BLOCKING_SOURCE), InputRegister(base + 6),
             poll_rate=PollRate.FAST),
-        _u8(key(DehumidifierPointKey.THERMAL_INTEGRATION_DEMAND_CONDITION), InputRegister(base + 7)),
-        _u32(key(DehumidifierPointKey.AIR_FILTER_LAST_CHANGE), InputRegister(base + 10), unit=Unit.SECONDS),
-        _u8(key(DehumidifierPointKey.HCW_SUPPLIER), InputRegister(base + 12)),
-        _text(key(DehumidifierPointKey.NAME), HoldingRegister(base + 1), write=HoldingRegister(base + 1)),
+        _u8(key(DehumidifierPointKey.THERMAL_INTEGRATION_DEMAND_CONDITION), InputRegister(base + 7),
+            poll_rate=PollRate.SLOW),
+        _u32(key(DehumidifierPointKey.AIR_FILTER_LAST_CHANGE), InputRegister(base + 10), unit=Unit.SECONDS,
+             poll_rate=PollRate.SLOW),
+        _u8(key(DehumidifierPointKey.HCW_SUPPLIER), InputRegister(base + 12), poll_rate=PollRate.SLOW),
+        _text(key(DehumidifierPointKey.NAME), HoldingRegister(base + 1), write=HoldingRegister(base + 1),
+              poll_rate=PollRate.STATIC),
         _u32(key(DehumidifierPointKey.AIR_FILTER_LIFETIME), HoldingRegister(base + 17),
-             write=HoldingRegister(base + 17), unit=Unit.MINUTES),
+             write=HoldingRegister(base + 17), unit=Unit.MINUTES, poll_rate=PollRate.SLOW),
         _u32(key(DehumidifierPointKey.AIR_FILTER_LIFETIME_USED), HoldingRegister(base + 19),
-             write=HoldingRegister(base + 19)),
-        _choice(key(DehumidifierPointKey.DRYING_ALLOWED_IN), HoldingRegister(base + 21)),
+             write=HoldingRegister(base + 19), poll_rate=PollRate.SLOW),
+        _choice(key(DehumidifierPointKey.DRYING_ALLOWED_IN), HoldingRegister(base + 21), poll_rate=PollRate.SLOW),
         _setting(key(DehumidifierPointKey.DRYING_COOLING_WATER_TEMP), base + 22),
-        _choice(key(DehumidifierPointKey.THERMAL_INTEGRATION_ALLOWED_IN), HoldingRegister(base + 23)),
+        _choice(key(DehumidifierPointKey.THERMAL_INTEGRATION_ALLOWED_IN), HoldingRegister(base + 23),
+                poll_rate=PollRate.SLOW),
         _setting(key(DehumidifierPointKey.THERMAL_INTEGRATION_HEATING_WATER_TEMP), base + 24),
         _setting(key(DehumidifierPointKey.THERMAL_INTEGRATION_COOLING_WATER_TEMP), base + 25),
         *(_alarm(key(point), DiscreteInput(base + bit)) for bit, point in enumerate((
@@ -1450,11 +1477,11 @@ def room(n: int) -> list[Point[Any]]:
     def setting(point: PointKey[float], offset: int, unit: Unit = Unit.CELSIUS,
                 on_write: Refresh | None = None) -> Point[float]:
         return _fp100(room_key(n, point), HoldingRegister(base + offset), write=HoldingRegister(base + offset),
-                      unit=unit, on_write=on_write)
+                      unit=unit, on_write=on_write, poll_rate=PollRate.SLOW)
 
     def switch(point: PointKey[int], offset: int, maximum: int, on_write: Refresh | None = None) -> Point[int]:
         return _u8(room_key(n, point), HoldingRegister(base + offset), write=HoldingRegister(base + offset),
-                   maximum=maximum, on_write=on_write)
+                   maximum=maximum, on_write=on_write, poll_rate=PollRate.SLOW)
 
     return [
         # --- input registers: what the room is doing
@@ -1487,11 +1514,14 @@ def room(n: int) -> list[Point[Any]]:
         associated(RoomPointKey.ASSOCIATED_HEATING_SOURCE, 28),
 
         # --- holding registers: what the user has set
-        _text(room_key(n, RoomPointKey.NAME), HoldingRegister(base + 1), write=HoldingRegister(base + 1)),
-        _choice(room_key(n, RoomPointKey.MODE), HoldingRegister(base + 17), on_write=retarget),
-        _choice(room_key(n, RoomPointKey.MODE_OVERRIDE), HoldingRegister(base + 18), on_write=retarget),
+        _text(room_key(n, RoomPointKey.NAME), HoldingRegister(base + 1), write=HoldingRegister(base + 1),
+              poll_rate=PollRate.STATIC),
+        _choice(room_key(n, RoomPointKey.MODE), HoldingRegister(base + 17), on_write=retarget, poll_rate=PollRate.SLOW),
+        _choice(room_key(n, RoomPointKey.MODE_OVERRIDE), HoldingRegister(base + 18), on_write=retarget,
+                poll_rate=PollRate.SLOW),
         setting(RoomPointKey.TEMP_AIR_TARGET, 19, on_write=retarget),
-        Point(room_key(n, RoomPointKey.LOCK), read=HoldingRegister(base + 20), write=HoldingRegister(base + 20)),
+        Point(room_key(n, RoomPointKey.LOCK), read=HoldingRegister(base + 20), write=HoldingRegister(base + 20),
+              poll_rate=PollRate.MEDIUM),
         setting(RoomPointKey.TEMP_STANDBY, 21, on_write=retarget),
         setting(RoomPointKey.TEMP_VACATION, 22, on_write=retarget),
         switch(RoomPointKey.EXCLUDE_FROM_VACATION, 23, 1, on_write=retarget),
@@ -1506,7 +1536,8 @@ def room(n: int) -> list[Point[Any]]:
         setting(RoomPointKey.DEW_POINT_COOLING_THRESHOLD, 32),
         setting(RoomPointKey.DEW_POINT_COOLING_THRESHOLD_HYSTERESIS, 33),
         setting(RoomPointKey.HUMIDITY_HIGH_ALARM_LIMIT, 34, Unit.PERCENT),
-        _choice(room_key(n, RoomPointKey.TEMP_PRESET), HoldingRegister(base + 35), on_write=retarget),
+        _choice(room_key(n, RoomPointKey.TEMP_PRESET), HoldingRegister(base + 35), on_write=retarget,
+                poll_rate=PollRate.SLOW),
 
         # --- discrete inputs: its alarms
         _alarm(room_key(n, RoomPointKey.WARNING), DiscreteInput(base + 1)),
@@ -1521,10 +1552,11 @@ def peripheral(slot: int) -> list[Point[Any]]:
     base = peripheral_base(slot)
     return [
         _u16(peripheral_key(slot, PeripheralPointKey.TYPE), InputRegister(base + 1), poll_rate=PollRate.STATIC),
-        _u32(peripheral_key(slot, PeripheralPointKey.SERIAL_NUMBER), InputRegister(base + 2), poll_rate=PollRate.STATIC),
+        _u32(peripheral_key(slot, PeripheralPointKey.SERIAL_NUMBER), InputRegister(base + 2),
+             poll_rate=PollRate.STATIC),
         _u16(peripheral_key(slot, PeripheralPointKey.OWNER), InputRegister(base + 4), poll_rate=PollRate.STATIC),
         _u8(peripheral_key(slot, PeripheralPointKey.SIGNAL_STRENGTH), InputRegister(base + 5), poll_rate=PollRate.RARE),
-        _text(peripheral_key(slot, PeripheralPointKey.NAME), HoldingRegister(base + 1)),
+        _text(peripheral_key(slot, PeripheralPointKey.NAME), HoldingRegister(base + 1), poll_rate=PollRate.STATIC),
         _alarm(peripheral_key(slot, PeripheralPointKey.WARNING), DiscreteInput(base + 1)),
         _alarm(peripheral_key(slot, PeripheralPointKey.ERROR), DiscreteInput(base + 2)),
         _alarm(peripheral_key(slot, PeripheralPointKey.LOW_BATTERY), DiscreteInput(base + 3)),
@@ -1633,12 +1665,15 @@ async def scan_peripheral(scan: Scan, slot: int) -> None:
                      peripheral_key(slot, PeripheralPointKey.OWNER)))
 
 
-SENTIO = Model(
-    name="Sentio",
-    manufacturer="Wavin",
-    # read_back_after measured with testing.measure_read_back on a CCU-208, address space 3.7.
-    timing=Timing(read_back_after=0.5, offline_after=30.0),
-    sections=[
+_BUSY = Retry(
+    Exponential(0.2, factor=2.0, max=None),  # guess
+    Attempts(5),  # manual: "the request shall be repeated"; how often: guess
+)
+
+SENTIO = ModbusModel(
+    "Sentio",
+    "Wavin",
+    [
         Section(LOCATION),
         RepeatedSection(room, range(1, ROOM_COUNT + 1), label=ROOM, scan=scan_room),
         RepeatedSection(peripheral, range(1, PERIPHERAL_COUNT + 1), label=PERIPHERAL, scan=scan_peripheral),
@@ -1654,17 +1689,24 @@ SENTIO = Model(
         RepeatedSection(dehumidifier, range(1, DEHUMIDIFIER_COUNT + 1), label=DEHUMIDIFIER,
                         scan=scan_dehumidifier),
     ],
+    poll_intervals={
+        PollRate.FAST: 10.0,  # guess
+        PollRate.MEDIUM: 30.0,  # guess
+        PollRate.SLOW: 60.0,  # guess
+        PollRate.RARE: 900.0,  # guess
+    },
+    read_back_after=0.5,  # measured on the owner's CCU-208 with measure_read_back
+    write_retry=NO_RETRY,
+    scan_check=PollRate.RARE,
+    identity_points=(),
     scan_steps=[check_the_controller, find_the_objects],
+    numbering=plain(first_address=1),  # measured on the owner's CCU-208: the manual's addresses are sent as they are
+    max_registers=32,  # manual: "32 registers or 256 bits"
+    max_bits=256,  # manual: "32 registers or 256 bits"
+    single_write=SingleWrite.FC06,  # manual
+    bit_write=None,
+    busy=_BUSY,
+    answers_within=0.5,  # manual: "Reply timeout 500 ms"
 )
-"""The Wavin Sentio: its rooms, peripherals and objects, and how often each is read."""
-
-SENTIO_MODBUS = ModbusProfile(
-    model=SENTIO,
-    numbering=plain(first_address=1),  # the manual's addresses are sent as they are; verified live
-    max_registers=32,  # the manual caps one request at 32 registers
-    max_bits=256,  # the manual: "32 registers or 256 bits" per request
-    single_write=SingleWrite.FC06,
-    bit_write=BitWrite.MASK,
-    busy=Retry(Exponential(0.2), Attempts(5)),
-)
-"""How the Sentio is talked to over Modbus TCP."""
+"""The Wavin Sentio: its rooms, peripherals and objects, how often each is read, and how it is
+talked to over Modbus TCP."""

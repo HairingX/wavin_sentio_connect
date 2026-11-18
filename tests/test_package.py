@@ -41,3 +41,20 @@ def test_what_it_passes_on_from_modbus_event_connect_is_that_packages_own() -> N
                 assert getattr(package, name) is getattr(source, name), name
     assert "Client" in wavin_sentio_connect.__all__
     assert "SimulatedModbusDevice" in wavin_sentio_connect.testing.__all__
+
+
+SHARED = (
+    "AuthenticationError", "CannotConnectError", "Certainty", "Change", "ClientError", "Clock", "DataValue",
+    "DeviceClient", "Identity", "InvalidValueError", "Key", "Labels", "Limits", "ModelError", "NotConnectedError",
+    "PointsCallback", "PollRate", "Quality", "ReadOnlyError", "Selector", "Status", "StatusCallback", "Unit",
+    "UnsupportedDeviceError", "ValueCallback", "Write", "WriteKind", "WriteRange",
+)
+"""The names every library built on event_connect passes on, so that each is used alike."""
+
+
+def test_it_passes_on_every_shared_name_as_event_connects_own() -> None:
+    import event_connect
+
+    for name in SHARED:
+        assert name in wavin_sentio_connect.__all__, name
+        assert getattr(wavin_sentio_connect, name) is getattr(event_connect, name), name
