@@ -41,7 +41,7 @@ from modbus_event_connect import (
     WriteKind,
     WriteRange,
 )
-from modbus_event_connect.modbus import ModbusConnection, ModbusTcpConnection
+from modbus_event_connect.modbus import ModbusConnection, ModbusModel, ModbusTcpConnection
 
 from ._model import (
     BOILER_HEAT_PUMP,
@@ -159,6 +159,7 @@ __all__ = [
     "Point",
     "Transform",
     "ModbusConnection",
+    "ModbusModel",
     "ModbusTcpConnection",
     "BOILER_HEAT_PUMP",
     "BUFFER_TANK",

@@ -53,8 +53,10 @@ asyncio.run(main())
 `create_client` takes what differs between installations: the host, the unit id (`DEFAULT_UNIT_ID`
 is the one a Sentio answers on over TCP), the port (`DEFAULT_PORT` unless given), `read_only` and,
 for tests, a `clock`. How the controller is read and talked to is the Sentio's own, not a
-setting. To drive polling from a loop of your own instead of `run()`, call `poll()`, which reads
-only what is due, and `seconds_until_next_poll()` to know when to call it again.
+setting. `run()` never ends by itself: it waits while the client is not connected, and logs a
+poll that raises and polls on after a pause. To drive polling from a loop of your own instead of
+`run()`, call `poll()`, which reads only what is due, and `seconds_until_next_poll()` to know when
+to call it again.
 
 When `connect()` returns, `client.points` holds exactly what this installation has - a room that
 was never set up is not there, so nothing is built for it. Nor is what the controller says a
@@ -201,10 +203,10 @@ the number the controller sent. Standby, vacation and daylight saving, which the
 0 and 1, are `bool`; their "no value", 255, reads as `NO_DATA` too.
 
 The model is in [`_model.py`](https://github.com/HairingX/wavin_sentio_connect/blob/main/src/wavin_sentio_connect/_model.py); every key is declared there
-with its address and encoding. `SENTIO` is the model, and says everything about how the controller
-is read: what it has, how often each value is read, how long a write takes to show, and how it is
-talked to over Modbus - the manual's addresses sent as they are, the most one request may ask
-for, a busy request sent again, and how long the controller takes to answer. Each number says
+with its address and encoding. `SENTIO` is the model, a `ModbusModel`, and says everything about
+how the controller is read: what it has, how often each value is read, how long a write takes to
+show, and how it is talked to over Modbus - the manual's addresses sent as they are, the most one
+request may ask for, a busy request sent again, and how long the controller takes to answer. Each number says
 where it comes from: the manual, a measurement on a CCU-208, or a guess.
 
 The manual's "Modbus Address" column holds the addresses themselves, so its numbers are used unchanged:

@@ -58,3 +58,8 @@ def test_it_passes_on_every_shared_name_as_event_connects_own() -> None:
     for name in SHARED:
         assert name in wavin_sentio_connect.__all__, name
         assert getattr(wavin_sentio_connect, name) is getattr(event_connect, name), name
+
+
+def test_it_passes_on_the_type_of_its_model() -> None:
+    assert "ModbusModel" in wavin_sentio_connect.__all__
+    assert isinstance(wavin_sentio_connect.SENTIO, wavin_sentio_connect.ModbusModel)
