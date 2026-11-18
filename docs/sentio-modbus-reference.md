@@ -270,8 +270,8 @@ column headers `3.2`, `3.3`, `3.4` carry the real versions.
 
 ## 9. Notes that shape a client implementation
 
-1. **Retry on `0x06`.** Mandated by the manual (section 6). Without it, reads fail
-   intermittently after every write and during boot.
+1. **Retry on `0x06`**, for reads and writes alike. Mandated by the manual (section 6). Without
+   it, requests fail intermittently after every write and during boot.
 2. **Batch to at most 32 registers**, and only across genuinely contiguous addresses. Objects
    are sparse (e.g. room input registers jump `00107` to `00111`), and a request spanning a gap
    returns `0x02` for the whole request, losing the valid registers with it.

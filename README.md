@@ -16,8 +16,8 @@ pip install wavin-sentio-connect
 ```
 
 Everything you use comes from `wavin_sentio_connect`: the client and its values, the errors, the
-model and its profile, the connection a controller can share, and, in `wavin_sentio_connect.testing`, a simulated controller
-for your own tests. modbus_event_connect is installed with it; nothing needs importing from it.
+model, the connection a controller can share, and, in `wavin_sentio_connect.testing`, a simulated
+controller for your own tests. modbus_event_connect is installed with it; nothing needs importing from it.
 
 ## Enabling Modbus on the controller
 
@@ -32,25 +32,29 @@ The controller restarts afterwards. It uses DHCP; its hostname is
 
 ```python
 import asyncio
-from wavin_sentio_connect import RoomPointKey, create_client, room_key, rooms
+from wavin_sentio_connect import DEFAULT_UNIT_ID, RoomPointKey, create_client, room_key, rooms
 
 def on_change(key, old, new):
     print(f"{key}: {new.value} ({new.quality.name})")
 
 async def main():
-    client = create_client("<device-ip>")
+    client = create_client(host="<device-ip>", unit_id=DEFAULT_UNIT_ID)
     await client.connect()              # finds the installed rooms and peripherals
 
     for room in rooms(client):
         print(room.number, room.name, "dummy" if room.is_dummy else "")
         client.subscribe(room_key(room.number, RoomPointKey.TEMP_AIR_CURRENT), on_change)
 
-    while True:                         # you own the clock; the library owns the plan
-        await client.poll()      # reads only what is due - free when nothing is
-        await asyncio.sleep(1)
+    await client.run()                  # reads what is due, when it is due, until cancelled
 
 asyncio.run(main())
 ```
+
+`create_client` takes what differs between installations: the host, the unit id (`DEFAULT_UNIT_ID`
+is the one a Sentio answers on over TCP), the port (`DEFAULT_PORT` unless given), `read_only` and,
+for tests, a `clock`. How the controller is read and talked to is the Sentio's own, not a
+setting. To drive polling from a loop of your own instead of `run()`, call `poll()`, which reads
+only what is due, and `seconds_until_next_poll()` to know when to call it again.
 
 When `connect()` returns, `client.points` holds exactly what this installation has - a room that
 was never set up is not there, so nothing is built for it. Nor is what the controller says a
@@ -62,8 +66,9 @@ ET-210, the LCD-200 and the EU-208-A have no signal strength.
 `rooms(client)`, `peripherals(client)` and `controller_model(client)` - the controller's model,
 such as "CCU-208" - describe the installation from values already read, with no extra requests.
 
-When the installation changes, `poll()` finds it; nobody needs to connect again. What each scan
-read is read again at `PollRate.SCAN`, and where it has changed, only that part is scanned again:
+When the installation changes, polling finds it; nobody needs to connect again. What each scan
+read is read again at the `RARE` rate, spread over it, and where it has changed, only that part is
+scanned again:
 
 | What changed | What is scanned again |
 |---|---|
@@ -87,21 +92,19 @@ Every value is a `DataValue`: `value`, `quality` and `timestamp` (UTC).
 
 Every point has a poll rate, and the library reads it when it is due:
 
-| Poll rate | Default | Sentio uses it for |
-|---|---|---|
-| `FAST` | 10 s | room states and blocking sources |
-| `MEDIUM` | 30 s | temperatures, humidity, dew point |
-| `SLOW` | 60 s | settings |
-| `RARE` | 15 min | peripheral signal strength |
-| `STATIC` | at connect | versions, serial numbers, names, room types |
-| `SCAN` | 15 min | what the scans read, to find changes to the installation |
+| Poll rate | Sentio uses it for |
+|---|---|
+| `FAST` | states and blocking sources, the system's alarm summary |
+| `MEDIUM` | temperatures, humidity, dew point |
+| `SLOW` | settings |
+| `RARE` | alarms by themselves, peripheral signal strength, what the scans read |
+| `STATIC` | versions, serial numbers, names, room types: read at connect |
 
-Override any of them, or a single key:
+`SENTIO.poll_intervals` gives each rate's seconds; the model says where each comes from. To
+read something now:
 
 ```python
 from wavin_sentio_connect import PollRate
-client.set_poll_interval(PollRate.FAST, 5)
-client.set_poll_interval("room_4_temp_air_current", 2)
 await client.refresh(PollRate.STATIC)        # re-read the static values now
 ```
 
@@ -123,12 +126,12 @@ await client.write(room_key(1, RoomPointKey.LOCK), RoomLock.HOTEL)   # LOCKED / 
 - The written point is read back, so subscribers see what the controller holds rather than what
   was asked for. A write that changes the rooms' regulated targets - vacation, standby, a room's
   setpoint, mode or preset - reads those targets again too.
-- A controller that stops answering is no longer asked once 3 requests in a row went unanswered,
-  then asked again after 2, 4 and 8 s and every 10 s after that, which opens its link again.
+- A controller that stops answering is no longer asked once a few requests in a row went
+  unanswered, then asked again less and less often, never given up on, which opens its link
+  again. `Status.CONNECTED` turns false once it has been silent for three of its fastest reads.
 - The controller answers `SERVER_DEVICE_BUSY` (`0x06`) while it stores a change; the manual says
-  such a request "shall be repeated again". A read is, up to four times more, 0.2 s after the
-  first and twice as long before each next. A write answered busy is sent once, and reported as
-  not taken.
+  such a request "shall be repeated again". A read or a write answered busy is sent again, a few
+  times, waiting longer before each; a write still answered busy is reported as not taken.
 - `client.status(Status.WRITE_PENDING)` - which `client.subscribe_status` follows - is true from
   the moment a write is asked for until the last one has finished.
 
@@ -136,7 +139,7 @@ For monitoring only, create the client read-only; every write is then refused be
 the controller:
 
 ```python
-client = create_client("<device-ip>", read_only=True)
+client = create_client(host="<device-ip>", unit_id=DEFAULT_UNIT_ID, read_only=True)
 ```
 
 ## Alarms
@@ -158,23 +161,26 @@ devices - use `create_client_on`:
 ```python
 from wavin_sentio_connect import ModbusTcpConnection, create_client_on
 
-connection = ModbusTcpConnection("<device-ip>")
+connection = ModbusTcpConnection("<device-ip>", connect_timeout=3.0, frame_gap=0.0)
 client = create_client_on(connection, unit_id=1)
 ```
 
-The client is asynchronous end to end - no threads, nothing that blocks the event loop - and
-owns no timer: the application calls `poll()` from its own loop.
+The connection is the host's, and so are its `connect_timeout` and `frame_gap`; each request still
+waits as long as the Sentio needs. The client's `disconnect()` leaves the connection open.
+
+The client is asynchronous end to end - no threads, nothing that blocks the event loop.
 
 ## Keys and addressing
 
-Every point has its key in `LocationPointKey`, `RoomPointKey`, `PeripheralPointKey` or the key
-class of another of the controller's objects, with the type of its value. A location point's is
-its whole key; a room's, a peripheral's or a circuit's becomes one with the instance:
+Every point has its key in `PointKey` (the location's), `RoomPointKey`, `PeripheralPointKey` or the
+key class of another of the controller's objects, with the type of its value. A location point's
+is its whole key; a room's, a peripheral's or a circuit's is an `InstanceKey`, which becomes a key
+with the instance:
 
 ```python
-from wavin_sentio_connect import ROOM, LocationPointKey, RoomPointKey, room_key
+from wavin_sentio_connect import ROOM, PointKey, RoomPointKey, room_key
 
-client.value(LocationPointKey.VACATION_ENABLE)               # key "vacation_enable"
+client.value(PointKey.VACATION_ENABLE)                       # key "vacation_enable"
 for n in client.instances(ROOM):                             # the rooms this installation has
     client.value(room_key(n, RoomPointKey.TEMP_AIR_CURRENT))  # key "room_4_temp_air_current"
     client.value(room_key(n, RoomPointKey.STATE))             # a RoomState, such as HEATING
@@ -195,16 +201,17 @@ the number the controller sent. Standby, vacation and daylight saving, which the
 0 and 1, are `bool`; their "no value", 255, reads as `NO_DATA` too.
 
 The model is in [`_model.py`](https://github.com/HairingX/wavin_sentio_connect/blob/main/src/wavin_sentio_connect/_model.py); every key is declared there
-with its address and encoding. `SENTIO` is the model: what the controller has, how often each
-value is read, and the half second a write takes to show. Beside it, `SENTIO_MODBUS` is its
-profile, how it is talked to over Modbus: the manual's addresses sent as they are, at most 32
-registers in one read, and a busy read asked again. `PROFILES` lists it.
+with its address and encoding. `SENTIO` is the model, and says everything about how the controller
+is read: what it has, how often each value is read, how long a write takes to show, and how it is
+talked to over Modbus - the manual's addresses sent as they are, the most one request may ask
+for, a busy request sent again, and how long the controller takes to answer. Each number says
+where it comes from: the manual, a measurement on a CCU-208, or a guess.
 
 The manual's "Modbus Address" column holds the addresses themselves, so its numbers are used unchanged:
 
 | Object | Keys | Base | Instances | Read on a controller |
 |---|---|---|---|---|
-| Location | `LocationPointKey` | `0` | one | yes |
+| Location | `PointKey` | `0` | one | yes |
 | Room *N* | `RoomPointKey`, `room_key` | `N * 100` | 1–16 | yes |
 | Outdoor zone | `OutdoorPointKey` | `3300` | one | yes |
 | DHW tank | `DhwTankPointKey` | `6600` | one | **no** |
