@@ -10,7 +10,6 @@ from typing import Any
 from types import MappingProxyType
 
 from modbus_event_connect import (
-    NO_RETRY,
     Attempts,
     DataType,
     Exponential,
@@ -1696,7 +1695,7 @@ SENTIO = ModbusModel(
         PollRate.RARE: 900.0,  # guess
     },
     read_back_after=0.5,  # measured on the owner's CCU-208 with measure_read_back
-    write_retry=NO_RETRY,
+    write_retry=_BUSY,
     scan_check=PollRate.RARE,
     identity_points=(),
     scan_steps=[check_the_controller, find_the_objects],

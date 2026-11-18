@@ -925,10 +925,14 @@ def test_a_read_answered_busy_is_asked_again() -> None:
     assert client.status(Status.CONNECTED).value
 
 
-def test_a_write_answered_busy_is_sent_once() -> None:
+def test_a_write_answered_busy_is_taken_on_the_next_try() -> None:
+    """The manual: a request answered "busy" shall be sent again - a write as much as a read."""
     client, gateway = _connected()
     gateway.units[1].busy_for = 1
-    assert asyncio.run(client.write(room_key(1, RoomPointKey.TEMP_AIR_TARGET), 22.0)) is False
+    assert asyncio.run(client.write(room_key(1, RoomPointKey.TEMP_AIR_TARGET), 22.0)) is True
+    assert gateway.units[1].holding_registers[room_base(1) + 19] == 2200
+    writes = [r for _, r in gateway.requests if not r.function.is_read]
+    assert len(writes) == 2
 
 
 def test_a_read_only_client_never_writes() -> None:
