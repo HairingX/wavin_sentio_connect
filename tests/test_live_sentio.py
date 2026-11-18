@@ -21,21 +21,24 @@ from typing import Any
 import pytest
 import pytest_asyncio
 from modbus_event_connect import Client, DataValue, Key, Quality, ReadOnlyError, Unit
-from modbus_event_connect.modbus import FunctionCode, ModbusDevice, ModbusTcpConnection, Request
+from modbus_event_connect.modbus import FunctionCode, ModbusTcpConnection, Request
 
 from conftest import live_or_skip, live_setting
 from wavin_sentio_connect import (
     SENTIO,
-    LocationPointKey,
+    PointKey,
     RoomPointKey,
+    create_client_on,
     peripherals,
     room_key,
     rooms,
 )
+from wavin_sentio_connect._sentio import _CONNECT_TIMEOUT, _FRAME_GAP, _TIMEOUT_MARGIN
 
 HOST = live_setting("SENTIO_HOST")
 PORT = int(live_setting("SENTIO_PORT") or "502")
 UNIT_ID = int(live_setting("SENTIO_UNIT_ID") or "1")
+TIMEOUT = SENTIO.answers_within + _TIMEOUT_MARGIN
 
 pytestmark = [
     pytest.mark.asyncio(loop_scope="module"),
@@ -52,8 +55,8 @@ class Live:
 @pytest_asyncio.fixture(scope="module", loop_scope="module")  # pyright: ignore[reportUntypedFunctionDecorator, reportUnknownMemberType]
 async def live() -> AsyncGenerator[Live, None]:
     assert HOST is not None   # guarded by the skip above
-    connection = ModbusTcpConnection(HOST, PORT)
-    client = Client(ModbusDevice(connection, UNIT_ID, owns_connection=True, reconnect=None), SENTIO, read_only=True)
+    connection = ModbusTcpConnection(HOST, PORT, connect_timeout=_CONNECT_TIMEOUT, frame_gap=_FRAME_GAP)
+    client = create_client_on(connection, unit_id=UNIT_ID, read_only=True)
     try:
         await client.connect()
     except Exception as err:
@@ -64,6 +67,7 @@ async def live() -> AsyncGenerator[Live, None]:
             f"  - Some controllers answer on unit id 255: set SENTIO_UNIT_ID=255")
     yield Live(client=client, connection=connection)
     await client.disconnect()
+    await connection.close()
 
 
 def _good[T](client: Client, key: Key[T]) -> T | None:
@@ -87,22 +91,22 @@ async def test_connects_and_identifies(live: Live) -> None:
     client = live.client
     print("\n--- controller ---")
     keys: list[Key[Any]] = [
-        LocationPointKey.DEVICE_TYPE, LocationPointKey.DATAPOINT_MAJOR, LocationPointKey.DATAPOINT_MINOR,
-        LocationPointKey.SOFTWARE_MAJOR, LocationPointKey.SOFTWARE_MINOR, LocationPointKey.HARDWARE_MAJOR,
-        LocationPointKey.HEATING_COOLING_MODE, LocationPointKey.MODBUS_MODE]
+        PointKey.DEVICE_TYPE, PointKey.DATAPOINT_MAJOR, PointKey.DATAPOINT_MINOR,
+        PointKey.SOFTWARE_MAJOR, PointKey.SOFTWARE_MINOR, PointKey.HARDWARE_MAJOR,
+        PointKey.HEATING_COOLING_MODE, PointKey.MODBUS_MODE]
     for key in keys:
         print(f"  {key:22} {client.value(key)}")
-    assert _good(client, LocationPointKey.DEVICE_TYPE) is not None
+    assert _good(client, PointKey.DEVICE_TYPE) is not None
 
 
 async def test_the_manuals_numbers_are_the_addresses(live: Live) -> None:
     """The manual documents two constants. Off by one, and these would be other registers."""
-    assert _good(live.client, LocationPointKey.DATAPOINT_MAJOR) == 3
-    assert _good(live.client, LocationPointKey.SERIAL_NUMBER_PREFIX) == 1530
+    assert _good(live.client, PointKey.DATAPOINT_MAJOR) == 3
+    assert _good(live.client, PointKey.SERIAL_NUMBER_PREFIX) == 1530
 
 
 async def test_text_decodes_without_a_length_prefix(live: Live) -> None:
-    name = _good(live.client, LocationPointKey.LOCATION_NAME)
+    name = _good(live.client, PointKey.LOCATION_NAME)
     print(f"\n  location name: {name!r}")
     assert isinstance(name, str)
 
@@ -176,7 +180,7 @@ async def test_the_real_request_limit(live: Live) -> None:
     largest = 0
     for count in (1, 8, 16, 32, 33, 35):
         response = await live.connection.request(
-            Request(UNIT_ID, FunctionCode.READ_HOLDING_REGISTERS, 101, count=count))
+            Request(UNIT_ID, FunctionCode.READ_HOLDING_REGISTERS, 101, count=count), timeout=TIMEOUT)
         verdict = "ok" if response.ok else f"refused, exception {response.exception_code}"
         print(f"  {count:>3} registers -> {verdict}")
         if response.ok:
@@ -188,6 +192,6 @@ async def test_the_real_request_limit(live: Live) -> None:
 async def test_the_alarm_inputs_answer(live: Live) -> None:
     """Alarms are discrete inputs (0x02). Not in the model yet; this confirms they are readable."""
     response = await live.connection.request(
-        Request(UNIT_ID, FunctionCode.READ_DISCRETE_INPUTS, 1, count=2))
+        Request(UNIT_ID, FunctionCode.READ_DISCRETE_INPUTS, 1, count=2), timeout=TIMEOUT)
     print(f"\n  location aggregated warning/error (DI 00001-00002): {response}")
     assert response.ok or response.exception_code in (0x02, 0x03)

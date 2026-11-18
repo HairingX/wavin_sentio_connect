@@ -15,8 +15,8 @@ room and peripheral of the controller, typed, that says when a value changes. It
   writes to the controller. The controller's address comes from an environment variable or the
   gitignored `mysecrets.py`.
 - `__version__` is the installed package's version, read from its metadata.
-- The library developed alongside it is `modbus_event_connect`, listed in `pyproject.toml` for
-  development branches.
+- The libraries developed alongside it are `event_connect` and `modbus_event_connect`, in that
+  order, listed in `pyproject.toml` for development branches.
 
 <!-- BEGIN HairingX/workflows: shared; edit it there -->
 ## Shared by every library
