@@ -51,7 +51,7 @@ from wavin_sentio_connect import (
     HeatCurveType,
     HeatingCoolingSourcePointKey,
     ItcPointKey,
-    LocationPointKey,
+    PointKey,
     ModbusMode,
     OutdoorPointKey,
     PeripheralPointKey,
@@ -199,7 +199,7 @@ def test_the_model_has_every_room_and_slot_the_address_space_defines() -> None:
 
 def test_every_key_is_one_named_value_and_every_named_value_is_a_key() -> None:
     named: list[Key[Any]] = [
-        *LocationPointKey.all(),
+        *PointKey.all(),
         *(room_key(n, point) for n in range(1, ROOM_COUNT + 1) for point in RoomPointKey.all()),
         *(peripheral_key(slot, point) for slot in range(1, PERIPHERAL_COUNT + 1) for point in PeripheralPointKey.all()),
         *OutdoorPointKey.all(),
@@ -220,7 +220,7 @@ def test_every_key_is_one_named_value_and_every_named_value_is_a_key() -> None:
 def test_every_key_names_the_type_its_point_holds() -> None:
     """The model builds each point from its key, so a key and its point cannot disagree."""
     points = resolve(SENTIO, {}).points
-    assert all(points[key].key.type is key.type for key in LocationPointKey.all())
+    assert all(points[key].key.type is key.type for key in PointKey.all())
     assert all(points[room_key(1, point)].key.type is point.type for point in RoomPointKey.all())
     assert all(points[peripheral_key(1, point)].key.type is point.type for point in PeripheralPointKey.all())
 
@@ -247,7 +247,7 @@ def test_a_state_reads_as_its_member() -> None:
     assert state is not None and state.value is RoomState.NONE
     kind = client.value(room_key(3, RoomPointKey.TYPE))
     assert kind is not None and kind.value is RoomType.DUMMY
-    mode = client.value(LocationPointKey.MODBUS_MODE)
+    mode = client.value(PointKey.MODBUS_MODE)
     assert mode is not None and mode.value is ModbusMode.READ_ONLY
 
 
@@ -264,7 +264,7 @@ def test_a_switch_reads_as_a_bool(raw: int, value: bool) -> None:
     unit = _installation()
     unit.holding_registers[27] = raw
     client, _ = _connected(unit=unit)
-    vacation = client.value(LocationPointKey.VACATION_ENABLE)
+    vacation = client.value(PointKey.VACATION_ENABLE)
     assert vacation is not None and (vacation.value, vacation.quality) == (value, Quality.GOOD)
 
 
@@ -273,12 +273,12 @@ def test_a_switch_answering_255_has_no_value_and_keeps_what_it_said() -> None:
     unit = _installation()
     unit.holding_registers[27] = 255
     client, _ = _connected(unit=unit)
-    vacation = client.value(LocationPointKey.VACATION_ENABLE)
+    vacation = client.value(PointKey.VACATION_ENABLE)
     assert vacation is not None and (vacation.value, vacation.quality, vacation.raw) == (None, Quality.NO_DATA, (255,))
 
 
 def test_the_key_strings_never_change() -> None:
-    assert (LocationPointKey.VACATION_ENABLE, room_key(4, RoomPointKey.HUMIDITY_CURRENT),
+    assert (PointKey.VACATION_ENABLE, room_key(4, RoomPointKey.HUMIDITY_CURRENT),
             peripheral_key(2, PeripheralPointKey.LOW_BATTERY)) == \
            ("vacation_enable", "room_4_humidity_current", "peripheral_2_low_battery")
 
@@ -384,7 +384,7 @@ def test_writing_vacation_updates_every_rooms_target_without_waiting_for_its_pol
     seen: list[object] = []
     client.subscribe(room_key(1, RoomPointKey.TEMP_AIR_TARGET_ACTIVE), lambda key, old, new: seen.append(new.value))
     unit.input_registers[room_base(1) + 1] = 1600          # what the controller does on vacation
-    asyncio.run(client.write(LocationPointKey.VACATION_ENABLE, True))
+    asyncio.run(client.write(PointKey.VACATION_ENABLE, True))
     clock.advance(SENTIO.timing.read_back_after)
     asyncio.run(client.poll())
     assert seen == [21.0, 16.0]
@@ -741,7 +741,7 @@ def test_new_firmware_is_read_afresh() -> None:
     def update(unit: SimulatedModbusDevice) -> None:
         unit.input_registers[13] = 5
     client, _, _ = _changed(update)
-    minor = client.value(LocationPointKey.SOFTWARE_MINOR)
+    minor = client.value(PointKey.SOFTWARE_MINOR)
     assert minor is not None and minor.value == 5
 
 
@@ -872,13 +872,13 @@ def test_a_function_a_room_is_not_associated_with_has_no_state_keys() -> None:
 
 def test_a_negative_outdoor_limit_is_negative() -> None:
     client, _ = _connected()
-    current = client.value(LocationPointKey.TEMP_OUTDOOR_COOLING_MIN)
+    current = client.value(PointKey.TEMP_OUTDOOR_COOLING_MIN)
     assert current is not None and current.value == -5.0
 
 
 def test_names_decode() -> None:
     client, _ = _connected()
-    location = client.value(LocationPointKey.LOCATION_NAME)
+    location = client.value(PointKey.LOCATION_NAME)
     assert location is not None and location.value == "Home"
 
 
@@ -902,7 +902,7 @@ def test_a_lock_mode_is_one_of_the_three_and_nothing_else() -> None:
 
 
 @pytest.mark.parametrize("key,value", [(room_key(1, RoomPointKey.MODE), 2), (room_key(1, RoomPointKey.TEMP_PRESET), 3),
-                                       (LocationPointKey.STANDBY_ENABLE, 5), (room_key(1, RoomPointKey.MODE), 1.0)])
+                                       (PointKey.STANDBY_ENABLE, 5), (room_key(1, RoomPointKey.MODE), 1.0)])
 def test_a_value_the_point_does_not_take_is_refused(key: Key[Any], value: Any) -> None:
     client, gateway = _connected()
     with pytest.raises(InvalidValueError):

@@ -12,7 +12,7 @@ from ._model import (
     SENTIO,
     PeripheralPointKey,
     PeripheralType,
-    LocationPointKey,
+    PointKey,
     RoomPointKey,
     RoomType,
     model_name,
@@ -104,7 +104,7 @@ class SentioPeripheral:
 def controller_model(client: Client) -> str | None:
     """The controller's model as it reports it, such as "CCU-208", from the value read during
     connect(); None if it reported none."""
-    found = _value(client, LocationPointKey.DEVICE_TYPE)
+    found = _value(client, PointKey.DEVICE_TYPE)
     return model_name(found) if found is not None else None
 
 

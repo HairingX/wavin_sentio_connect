@@ -26,7 +26,7 @@ from modbus_event_connect.modbus import FunctionCode, ModbusTcpConnection, Reque
 from conftest import live_or_skip, live_setting
 from wavin_sentio_connect import (
     SENTIO,
-    LocationPointKey,
+    PointKey,
     RoomPointKey,
     create_client_on,
     peripherals,
@@ -91,22 +91,22 @@ async def test_connects_and_identifies(live: Live) -> None:
     client = live.client
     print("\n--- controller ---")
     keys: list[Key[Any]] = [
-        LocationPointKey.DEVICE_TYPE, LocationPointKey.DATAPOINT_MAJOR, LocationPointKey.DATAPOINT_MINOR,
-        LocationPointKey.SOFTWARE_MAJOR, LocationPointKey.SOFTWARE_MINOR, LocationPointKey.HARDWARE_MAJOR,
-        LocationPointKey.HEATING_COOLING_MODE, LocationPointKey.MODBUS_MODE]
+        PointKey.DEVICE_TYPE, PointKey.DATAPOINT_MAJOR, PointKey.DATAPOINT_MINOR,
+        PointKey.SOFTWARE_MAJOR, PointKey.SOFTWARE_MINOR, PointKey.HARDWARE_MAJOR,
+        PointKey.HEATING_COOLING_MODE, PointKey.MODBUS_MODE]
     for key in keys:
         print(f"  {key:22} {client.value(key)}")
-    assert _good(client, LocationPointKey.DEVICE_TYPE) is not None
+    assert _good(client, PointKey.DEVICE_TYPE) is not None
 
 
 async def test_the_manuals_numbers_are_the_addresses(live: Live) -> None:
     """The manual documents two constants. Off by one, and these would be other registers."""
-    assert _good(live.client, LocationPointKey.DATAPOINT_MAJOR) == 3
-    assert _good(live.client, LocationPointKey.SERIAL_NUMBER_PREFIX) == 1530
+    assert _good(live.client, PointKey.DATAPOINT_MAJOR) == 3
+    assert _good(live.client, PointKey.SERIAL_NUMBER_PREFIX) == 1530
 
 
 async def test_text_decodes_without_a_length_prefix(live: Live) -> None:
-    name = _good(live.client, LocationPointKey.LOCATION_NAME)
+    name = _good(live.client, PointKey.LOCATION_NAME)
     print(f"\n  location name: {name!r}")
     assert isinstance(name, str)
 
