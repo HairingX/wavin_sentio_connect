@@ -1,13 +1,14 @@
 """Wavin Sentio over Modbus TCP, built on modbus_event_connect.
 
 Everything a user of a Sentio needs is here, so that nothing has to be imported from
-modbus_event_connect: the client and its values, what a point is, the errors, the model, and the
+modbus_event_connect: the client and its values, what a point is, the level of certainty a client uses, the errors, the model, and the
 connection a controller can share.
 """
 from importlib.metadata import version as _installed_version
 
 from modbus_event_connect import (
     AuthenticationError,
+    Candidate,
     CannotConnectError,
     Certainty,
     Change,
@@ -22,6 +23,7 @@ from modbus_event_connect import (
     InvalidValueError,
     Key,
     Labels,
+    Level,
     Limits,
     ModelError,
     NotConnectedError,
@@ -126,6 +128,7 @@ from ._sentio import (
 __version__ = _installed_version("wavin_sentio_connect")
 __all__ = [
     "AuthenticationError",
+    "Candidate",
     "CannotConnectError",
     "Certainty",
     "Change",
@@ -137,6 +140,7 @@ __all__ = [
     "InvalidValueError",
     "Key",
     "Labels",
+    "Level",
     "Limits",
     "ModelError",
     "NotConnectedError",

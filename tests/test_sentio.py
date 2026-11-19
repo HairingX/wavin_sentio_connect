@@ -51,6 +51,7 @@ from wavin_sentio_connect import (
     HeatCurveType,
     HeatingCoolingSourcePointKey,
     ItcPointKey,
+    Level,
     PointKey,
     ModbusMode,
     OutdoorPointKey,
@@ -188,7 +189,7 @@ def test_the_model_is_valid() -> None:
 
 
 def test_the_model_has_every_room_and_slot_the_address_space_defines() -> None:
-    resolved = resolve(SENTIO, {})
+    resolved = resolve(SENTIO, {}, Level.DOCUMENTED)
     assert resolved.instances["room"] == tuple(range(1, 17))
     assert resolved.instances["peripheral"] == tuple(range(1, 65))
     assert resolved.instances["hcc"] == (1, 2, 3)
@@ -214,12 +215,12 @@ def test_every_key_is_one_named_value_and_every_named_value_is_a_key() -> None:
         *(dehumidifier_key(n, point) for n in range(1, DEHUMIDIFIER_COUNT + 1)
           for point in DehumidifierPointKey.all())]
     assert len(set(named)) == len(named)
-    assert set(named) == set(resolve(SENTIO, {}).points)
+    assert set(named) == set(resolve(SENTIO, {}, Level.DOCUMENTED).points)
 
 
 def test_every_key_names_the_type_its_point_holds() -> None:
     """The model builds each point from its key, so a key and its point cannot disagree."""
-    points = resolve(SENTIO, {}).points
+    points = resolve(SENTIO, {}, Level.DOCUMENTED).points
     assert all(points[key].key.type is key.type for key in PointKey.all())
     assert all(points[room_key(1, point)].key.type is point.type for point in RoomPointKey.all())
     assert all(points[peripheral_key(1, point)].key.type is point.type for point in PeripheralPointKey.all())
@@ -284,12 +285,12 @@ def test_the_key_strings_never_change() -> None:
 
 
 def test_units_are_exactly_the_units_the_model_uses() -> None:
-    assert UNITS == {point.unit for point in resolve(SENTIO, {}).points.values() if point.unit is not None}
+    assert UNITS == {point.unit for point in resolve(SENTIO, {}, Level.DOCUMENTED).points.values() if point.unit is not None}
 
 
 def test_the_regulated_target_and_the_users_setting_are_two_points() -> None:
     """Only a datapoint/setpoint prefix distinguishes the regulated target from the user's setting."""
-    resolved = resolve(SENTIO, {})
+    resolved = resolve(SENTIO, {}, Level.DOCUMENTED)
     active, setting = resolved.point("room_1_temp_air_target_active"), resolved.point("room_1_temp_air_target")
     assert active.read != setting.read
     assert not active.writable and setting.writable
@@ -304,11 +305,11 @@ def test_the_regulated_target_and_the_users_setting_are_two_points() -> None:
     ("datetime_unix", Unit.SECONDS),
 ])
 def test_every_value_carries_the_right_unit(key: str, unit: Unit) -> None:
-    assert resolve(SENTIO, {}).point(key).unit is unit
+    assert resolve(SENTIO, {}, Level.DOCUMENTED).point(key).unit is unit
 
 
 def test_text_is_sixteen_registers_and_temperatures_are_signed_hundredths() -> None:
-    resolved = resolve(SENTIO, {})
+    resolved = resolve(SENTIO, {}, Level.DOCUMENTED)
     assert resolved.point("location_name").data_type.kind is DataTypeKind.STRING
     assert resolved.point("location_name").registers == 16
     temp = resolved.point("room_1_temp_air_current")
@@ -317,7 +318,7 @@ def test_text_is_sixteen_registers_and_temperatures_are_signed_hundredths() -> N
 
 
 def test_the_room_lock_is_a_closed_set() -> None:
-    assert resolve(SENTIO, {}).point("room_1_lock").key.type is RoomLock
+    assert resolve(SENTIO, {}, Level.DOCUMENTED).point("room_1_lock").key.type is RoomLock
     assert {member.value for member in RoomLock} == {8, 16, 32}
 
 
@@ -327,11 +328,11 @@ def test_the_room_lock_is_a_closed_set() -> None:
     ("temp_air_target", PollRate.SLOW), ("type", PollRate.STATIC),
 ])
 def test_what_a_room_is_doing_is_read_faster_than_how_warm_it_is(name: str, poll_rate: PollRate) -> None:
-    assert resolve(SENTIO, {}).point(f"room_1_{name}").poll_rate is poll_rate
+    assert resolve(SENTIO, {}, Level.DOCUMENTED).point(f"room_1_{name}").poll_rate is poll_rate
 
 
 def test_every_alarm_is_a_bit_read_rarely_by_itself() -> None:
-    resolved = resolve(SENTIO, {})
+    resolved = resolve(SENTIO, {}, Level.DOCUMENTED)
     alarms = resolved.select(sentio_model.ALARM)
     assert {p.key for p in alarms if p.key.startswith("room_1_")} == {
         "room_1_warning", "room_1_error", "room_1_low_battery", "room_1_peripheral_lost"}
@@ -341,7 +342,7 @@ def test_every_alarm_is_a_bit_read_rarely_by_itself() -> None:
 
 
 def test_the_systems_summary_is_always_polled_and_reads_the_alarms_when_it_changes() -> None:
-    resolved = resolve(SENTIO, {})
+    resolved = resolve(SENTIO, {}, Level.DOCUMENTED)
     for key in ("system_warning", "system_error"):
         summary = resolved.point(key)
         assert summary.poll_always and summary.poll_rate is PollRate.FAST
@@ -370,7 +371,7 @@ def test_a_raised_alarm_is_reported_without_waiting_for_its_own_schedule() -> No
     ("room_1_mode", Labels(group="room_target", room=1)),
 ])
 def test_a_write_that_changes_room_targets_reads_them_again(key: str, targets: Labels) -> None:
-    resolved = resolve(SENTIO, {})
+    resolved = resolve(SENTIO, {}, Level.DOCUMENTED)
     effect = resolved.point(key).on_write
     assert effect is not None and effect.targets == targets
     assert [p.key for p in resolved.select(targets)][:1] == ["room_1_temp_air_target_active"]
@@ -393,12 +394,12 @@ def test_writing_vacation_updates_every_rooms_target_without_waiting_for_its_pol
 def test_what_a_write_changes_is_read_once_the_write_shows_however_long_that_is() -> None:
     """The time a write takes to show is measured once, for the controller as a whole."""
     timing = dataclasses.replace(SENTIO, read_back_after=2.0).timing
-    written = [p for p in resolve(SENTIO, {}).points.values() if p.on_write is not None]
+    written = [p for p in resolve(SENTIO, {}, Level.DOCUMENTED).points.values() if p.on_write is not None]
     assert written and all(timing.on_write_delay(point) == 2.0 for point in written)
 
 
 def test_a_peripherals_signal_strength_is_read_rarely() -> None:
-    assert resolve(SENTIO, {}).point("peripheral_1_signal_strength").poll_rate is PollRate.RARE
+    assert resolve(SENTIO, {}, Level.DOCUMENTED).point("peripheral_1_signal_strength").poll_rate is PollRate.RARE
 
 
 # ================================================================================== scan
@@ -474,10 +475,27 @@ def test_a_client_is_created_from_what_differs_between_installations() -> None:
         parameters = inspect.signature(create).parameters.values()
         return [p.name for p in parameters if p.kind is inspect.Parameter.KEYWORD_ONLY]
 
-    assert keywords(create_client) == ["host", "unit_id", "port", "read_only", "clock"]
-    assert list(inspect.signature(create_client_on).parameters) == ["connection", "unit_id", "read_only", "clock"]
-    assert keywords(create_client_on) == ["unit_id", "read_only", "clock"]
+    assert keywords(create_client) == ["host", "unit_id", "port", "level", "read_only", "clock"]
+    assert list(inspect.signature(create_client_on).parameters) == ["connection", "unit_id", "level", "read_only",
+                                                                    "clock"]
+    assert keywords(create_client_on) == ["unit_id", "level", "read_only", "clock"]
     assert inspect.signature(create_client).parameters["unit_id"].default is inspect.Parameter.empty
+
+
+@pytest.mark.parametrize(("settings", "level"), [({}, Level.DOCUMENTED), ({"level": Level.TEST}, Level.TEST)],
+                         ids=["unless-told", "told"])
+def test_a_client_uses_the_documented_points_unless_told_a_level(settings: dict[str, Any], level: Level) -> None:
+    assert create_client(host="192.0.2.1", unit_id=1, **settings).level is level
+    assert create_client_on(SimulatedModbusGateway({1: _installation()}), unit_id=1, **settings).level is level
+
+
+def test_at_the_documented_level_a_client_has_every_point_of_the_model() -> None:
+    """The Sentio has no point its manual does not state, and no candidate."""
+    assert SENTIO.keys_at(Level.DOCUMENTED) == SENTIO.keys
+    documented, _ = _connected()
+    tested = create_client_on(SimulatedModbusGateway({1: _installation()}), unit_id=1, level=Level.TEST)
+    asyncio.run(tested.connect())
+    assert set(documented.points) == set(tested.points)
 
 
 def test_a_client_is_a_device_client_whichever_way_it_is_created() -> None:
@@ -638,7 +656,7 @@ def _changed(change: Callable[[SimulatedModbusDevice], None]) -> tuple[Client, S
 def test_an_unchanged_installation_is_checked_by_reading_input_registers_only() -> None:
     """Beside the check, its rate's own points are read: those requests are left out."""
     _, gateway, seen = _changed(lambda unit: None)
-    at_its_rate = {point.read for point in resolve(SENTIO, {}).points.values() if point.poll_rate is _SCAN_CHECK}
+    at_its_rate = {point.read for point in resolve(SENTIO, {}, Level.DOCUMENTED).points.values() if point.poll_rate is _SCAN_CHECK}
     checking = [r for _, r in gateway.requests
                 if not all(_REGISTER[r.function](a) in at_its_rate for a in range(r.address, r.address + r.count))]
     assert checking and {r.function for r in checking} == {FunctionCode.READ_INPUT_REGISTERS}
