@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from modbus_event_connect import CircuitBreaker, Client, Clock, Exponential, Key, Retry
+from modbus_event_connect import CircuitBreaker, Client, Clock, Exponential, Key, Level, Retry
 from modbus_event_connect.modbus import PORT, ModbusConnection, ModbusDevice, ModbusTcpConnection
 
 from ._model import (
@@ -36,37 +36,40 @@ _RECONNECT = CircuitBreaker(
 _OFFLINE_AFTER_INTERVALS = 3  # guess: 30 s at FAST
 
 
-def create_client(*, host: str, unit_id: int, port: int = DEFAULT_PORT, read_only: bool = False,
-                  clock: Clock | None = None) -> Client:
+def create_client(*, host: str, unit_id: int, port: int = DEFAULT_PORT, level: Level = Level.DOCUMENTED,
+                  read_only: bool = False, clock: Clock | None = None) -> Client:
     """A client for the Sentio at `host`, with its own connection; call `connect()` on it.
 
     A controller that stops answering is asked again less and less often, and never given up on;
     a request it answers busy is sent again, as its manual asks.
 
     Args:
+        level: which points the controller has: those read on a Sentio (VERIFIED), also those its
+            manual states (DOCUMENTED), or every point, with each candidate in place of the point
+            it replaces (TEST).
         read_only: refuse every write before it reaches the controller.
     """
     connection = ModbusTcpConnection(host, port, connect_timeout=_CONNECT_TIMEOUT, frame_gap=_FRAME_GAP,
                                      clock=clock)
-    return _client(connection, unit_id, owns_connection=True, read_only=read_only, clock=clock)
+    return _client(connection, unit_id, owns_connection=True, level=level, read_only=read_only, clock=clock)
 
 
-def create_client_on(connection: ModbusConnection, *, unit_id: int, read_only: bool = False,
-                     clock: Clock | None = None) -> Client:
+def create_client_on(connection: ModbusConnection, *, unit_id: int, level: Level = Level.DOCUMENTED,
+                     read_only: bool = False, clock: Clock | None = None) -> Client:
     """A client on a connection the host already owns - a gateway shared with other devices.
 
     It behaves as one from `create_client`, except that its `disconnect()` leaves the connection
     open.
     """
-    return _client(connection, unit_id, owns_connection=False, read_only=read_only, clock=clock)
+    return _client(connection, unit_id, owns_connection=False, level=level, read_only=read_only, clock=clock)
 
 
-def _client(connection: ModbusConnection, unit_id: int, *, owns_connection: bool, read_only: bool,
+def _client(connection: ModbusConnection, unit_id: int, *, owns_connection: bool, level: Level, read_only: bool,
             clock: Clock | None) -> Client:
     device = ModbusDevice(connection, unit_id, reconnect=_RECONNECT, models=(SENTIO,),
                           timeout_margin=_TIMEOUT_MARGIN, owns_connection=owns_connection, clock=clock)
-    return Client(device, SENTIO, offline_after_intervals=_OFFLINE_AFTER_INTERVALS, read_only=read_only,
-                  clock=clock)
+    return Client(device, SENTIO, offline_after_intervals=_OFFLINE_AFTER_INTERVALS, level=level,
+                  read_only=read_only, clock=clock)
 
 
 # ============================================================================ installation

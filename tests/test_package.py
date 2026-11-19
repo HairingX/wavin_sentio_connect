@@ -47,7 +47,7 @@ SHARED = (
     "AuthenticationError", "CannotConnectError", "Certainty", "Change", "ClientError", "Clock", "DataValue",
     "DeviceClient", "Identity", "InvalidValueError", "Key", "Labels", "Limits", "ModelError", "NotConnectedError",
     "PointsCallback", "PollRate", "Quality", "ReadOnlyError", "Selector", "Status", "StatusCallback", "Unit",
-    "UnsupportedDeviceError", "ValueCallback", "Write", "WriteKind", "WriteRange",
+    "UnsupportedDeviceError", "ValueCallback", "Write", "WriteKind", "WriteRange", "Level", "Candidate",
 )
 """The names every library built on event_connect passes on, so that each is used alike."""
 

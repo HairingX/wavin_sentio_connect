@@ -51,12 +51,17 @@ asyncio.run(main())
 ```
 
 `create_client` takes what differs between installations: the host, the unit id (`DEFAULT_UNIT_ID`
-is the one a Sentio answers on over TCP), the port (`DEFAULT_PORT` unless given), `read_only` and,
-for tests, a `clock`. How the controller is read and talked to is the Sentio's own, not a
-setting. `run()` never ends by itself: it waits while the client is not connected, and logs a
-poll that raises and polls on after a pause. To drive polling from a loop of your own instead of
-`run()`, call `poll()`, which reads only what is due, and `seconds_until_next_poll()` to know when
-to call it again.
+is the one a Sentio answers on over TCP), the port (`DEFAULT_PORT` unless given), the `level`,
+`read_only` and, for tests, a `clock`. How the controller is read and talked to is the Sentio's
+own, not a setting. `run()` never ends by itself: it waits while the client is not connected, and
+logs a poll that raises and polls on after a pause. To drive polling from a loop of your own
+instead of `run()`, call `poll()`, which reads only what is due, and `seconds_until_next_poll()`
+to know when to call it again.
+
+The `level` is how certain a point must be for the client to use it. `Level.DOCUMENTED`, the
+default, uses every point the Sentio's Modbus manual states, which is every point this library
+has; `Level.VERIFIED` only those marked as read on a Sentio, of which there are none yet; and
+`Level.TEST` every point, with any candidate in place of the point it replaces.
 
 When `connect()` returns, `client.points` holds exactly what this installation has - a room that
 was never set up is not there, so nothing is built for it. Nor is what the controller says a
