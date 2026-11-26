@@ -1113,7 +1113,7 @@ LOCATION = [
           poll_rate=PollRate.MEDIUM, poll_always=True),
     # Write-only per the manual: it can never be read back. The manual: "range for password is 1 - 65534".
     Point(PointKey.MODBUS_PASSWORD, write=HoldingRegister(6), data_type=DataType.UINT16,
-          write_kind=WriteKind.COMMAND, valid_raw=range(1, 0xFFFF)),
+          write_kind=WriteKind.COMMAND, valid_raw=range(1, 0xFFFF), secret=True),
     _text(PointKey.LOCATION_NAME, HoldingRegister(10), write=HoldingRegister(10), poll_rate=PollRate.STATIC),
     _flag(PointKey.STANDBY_ENABLE, HoldingRegister(26), on_write=rereads(ROOM_TARGET), poll_rate=PollRate.SLOW),
     _flag(PointKey.VACATION_ENABLE, HoldingRegister(27), on_write=rereads(ROOM_TARGET), poll_rate=PollRate.SLOW),
