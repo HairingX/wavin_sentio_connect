@@ -5,7 +5,7 @@ import dataclasses
 import inspect
 import logging
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from modbus_event_connect import (
@@ -951,6 +951,23 @@ def test_a_write_answered_busy_is_taken_on_the_next_try() -> None:
     assert gateway.units[1].holding_registers[room_base(1) + 19] == 2200
     writes = [r for _, r in gateway.requests if not r.function.is_read]
     assert len(writes) == 2
+
+
+def test_the_modbus_password_is_the_only_secret_point() -> None:
+    points = resolve(SENTIO, {}, Level.TEST).points.values()
+    assert [point.key for point in points if point.secret] == [PointKey.MODBUS_PASSWORD]
+
+
+def test_writing_the_modbus_password_leaves_no_trace_of_it_in_the_diagnostics() -> None:
+    unit = _installation()
+    unit.holding_registers[6] = 1234
+    client, gateway = _connected(unit=unit)
+    assert asyncio.run(client.write(PointKey.MODBUS_PASSWORD, 52817)) is True
+    assert gateway.units[1].holding_registers[6] == 52817
+    writes = cast(dict[str, list[dict[str, Any]]], client.diagnostics()["writes"])
+    (record,) = writes["modbus_password"]
+    assert (record["outcome"], record["value"], record["raw"], record["read_back"]) == ("taken", None, [], None)
+    assert "52817" not in repr(client.diagnostics())
 
 
 def test_a_read_only_client_never_writes() -> None:
